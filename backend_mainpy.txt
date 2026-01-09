@@ -1,0 +1,1065 @@
+## ---------------------------------------------------
+## COMPLETE and UPDATED main.py FOR DOCTOR BACKEND
+## ---------------------------------------------------
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
+from models import Patient, PatientSubmission, Doctor, NoteCreate # <-- MODIFIED: Added NoteCreate
+import os
+from dotenv import load_dotenv
+from bson import ObjectId
+from datetime import datetime
+from starlette.responses import StreamingResponse
+import mimetypes
+import json
+import httpx
+import asyncio
+from typing import List, Optional
+from fastapi import File, UploadFile, Form
+import firebase_admin
+from firebase_admin import credentials, messaging
+from fastapi.responses import JSONResponse
+from pymongo.errors import WriteError
+from passlib.context import CryptContext
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
+import httpx
+
+load_dotenv()
+
+PATIENT_BACKEND_URL = os.getenv("PATIENT_BACKEND_URL")
+if not PATIENT_BACKEND_URL:
+    raise RuntimeError("PATIENT_BACKEND_URL missing in .env")
+
+# Initialize Firebase Admin if credentials provided
+FIREBASE_CRED = os.getenv("FIREBASE_CREDENTIAL") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+if FIREBASE_CRED:
+    try:
+        # If path to service account JSON is provided, initialize with it
+        if os.path.exists(FIREBASE_CRED):
+            cred = credentials.Certificate(FIREBASE_CRED)
+            try:
+                firebase_admin.initialize_app(cred)
+            except ValueError:
+                # app already initialized
+                pass
+        else:
+            # rely on environment (GOOGLE_APPLICATION_CREDENTIALS)
+            try:
+                firebase_admin.get_app()
+            except ValueError:
+                firebase_admin.initialize_app()
+    except Exception:
+        # don't crash app if firebase not configured correctly
+        FIREBASE_CRED = None
+else:
+    # not configured
+    FIREBASE_CRED = None
+
+app = FastAPI(title="Doctor Dashboard API")
+
+# Allow Flutter app to connect
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+pwd_context = CryptContext(schemes=["bcrypt", "pbkdf2_sha256"], deprecated="auto")
+
+# Connect to MongoDB
+MONGO_URL = os.getenv("MONGO_URL")
+DB_NAME = os.getenv("DB_NAME")
+
+if not MONGO_URL:
+    raise RuntimeError("MONGO_URL is not set in environment/.env")
+if not DB_NAME:
+    raise RuntimeError("DB_NAME is not set in environment/.env")
+
+client = None
+db = None
+patients_collection = None
+submissions_collection = None
+doctors_collection = None
+messages_collection = None
+doc_submissions_collection = None
+gridfs_bucket = None
+amsler_collection = None
+adherence_collection = None
+
+
+@app.on_event("startup")
+async def startup_db_client():
+    """Create Motor client and collection handles on application startup (binds to the running loop)."""
+    global client, db, patients_collection, submissions_collection, doctors_collection, messages_collection, doc_submissions_collection, gridfs_bucket, amsler_collection, adherence_collection
+    client = AsyncIOMotorClient(MONGO_URL)
+    db = client[DB_NAME]
+    patients_collection = db["patients"]
+    submissions_collection = db["patient_submissions"]
+    doctors_collection = db["doctors"]
+    messages_collection = db["messages"]
+    doc_submissions_collection = db["doc_submissions"]
+    gridfs_bucket = AsyncIOMotorGridFSBucket(db)
+    amsler_collection = db["amsler_tests"]
+    adherence_collection = db["adherence"]
+
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    global client
+    try:
+        if client:
+            client.close()
+    except Exception:
+        pass
+
+def serialize_doc(obj):
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {k: serialize_doc(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [serialize_doc(v) for v in obj]
+    return obj
+
+# --- All your existing endpoints remain here, unchanged ---
+# (I've omitted them for brevity but they are part of the final code)
+
+@app.get("/patients")
+async def get_patients():
+    patients = []
+    async for patient in patients_collection.find():
+        patients.append(serialize_doc(patient))
+    return patients
+
+@app.get("/patients/search/")
+async def search_patient(query: str):
+    patient = await patients_collection.find_one(
+        {"$or": [{"name": {"$regex": query, "$options": "i"}},
+                 {"email": {"$regex": query, "$options": "i"}}]}
+    )
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return serialize_doc(patient)
+
+
+# New: patient case-sheet endpoints (non-breaking — namespaced under /patients/case)
+@app.get("/patients/case/search/")
+async def search_patient_case(query: str):
+    """Search patients by patientDetails.email, patientDetails.name or registrationId."""
+    q = {"$or": [
+        {"patientDetails.email": {"$regex": query, "$options": "i"}},
+        {"patientDetails.name": {"$regex": query, "$options": "i"}},
+        {"registrationId": {"$regex": query, "$options": "i"}}
+    ]}
+    patient = await patients_collection.find_one(q)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return serialize_doc(patient)
+
+
+@app.get("/patients/case/{pid}")
+async def get_patient_case(pid: str):
+    """Fetch a patient document by ObjectId or fallback to string id."""
+    patient = None
+    # try ObjectId lookup first
+    try:
+        oid = ObjectId(pid)
+        patient = await patients_collection.find_one({"_id": oid})
+    except Exception:
+        # try string id
+        patient = await patients_collection.find_one({"_id": pid})
+
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return serialize_doc(patient)
+
+@app.post("/patients/{email}/problems")
+async def add_problem(email: str, payload: dict):
+    # ... (existing code)
+    problem = payload.get("problem")
+    if not problem:
+        raise HTTPException(status_code=400, detail="Missing problem")
+    entry = {"value": problem, "at": datetime.utcnow()}
+    result = await patients_collection.update_one({"email": email}, {"$push": {"present_problems": entry}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return {"message": "Problem recorded", "entry": entry}
+
+@app.post("/patients/{email}/medicines")
+async def add_medicine(email: str, payload: dict):
+    # ... (existing code)
+    med = payload.get("medicine")
+    if not med:
+        raise HTTPException(status_code=400, detail="Missing medicine")
+    entry = {"value": med, "at": datetime.utcnow()}
+    result = await patients_collection.update_one({"email": email}, {"$push": {"medicines": entry}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return {"message": "Medicine recorded", "entry": entry}
+
+@app.post("/patients/{email}/procedure_done")
+async def procedure_done(email: str, payload: dict):
+    # ... (existing code)
+    proc_type = payload.get("procedure_type")
+    if not proc_type:
+        raise HTTPException(status_code=400, detail="Missing procedure_type")
+    patient = await patients_collection.find_one({"email": email})
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    problems = patient.get("present_problems", [])
+    meds = patient.get("medicines", [])
+    hist = {
+        "at": datetime.utcnow(),
+        "problem": "; ".join([p.get("value") for p in problems if p.get("value")]),
+        "medicines": [m.get("value") for m in meds if m.get("value")],
+        "procedure_type": proc_type,
+        "procedure_done": True,
+    }
+    await patients_collection.update_one({"email": email}, {"$push": {"history": hist}, "$set": {"present_problems": [], "medicines": []}})
+    return {"message": "Procedure recorded and history updated", "history": hist}
+
+@app.get("/files/{file_id}")
+async def get_file(file_id: str):
+    # ... (existing code)
+    try:
+        oid = ObjectId(file_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid file id")
+    stream = await gridfs_bucket.open_download_stream(oid)
+    file_doc = await db["fs.files"].find_one({"_id": oid})
+    filename = file_doc.get("filename", "")
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return StreamingResponse(stream, media_type=content_type)
+
+
+async def _collect_tokens_for_recipients_async(recipients: dict):
+    """Collect FCM tokens for recipients. Supports {"all": True} or {"emails": [...]} or {"patient_ids": [...]}"""
+    tokens = []
+    if recipients.get("all", False):
+        cursor = patients_collection.find({"fcm_token": {"$exists": True, "$ne": None}}, {"fcm_token": 1})
+        async for p in cursor:
+            t = p.get("fcm_token")
+            if t:
+                tokens.append(t)
+    else:
+        emails_or_ids = recipients.get("emails", []) or recipients.get("patient_ids", [])
+        if emails_or_ids:
+            # build query: match by email OR by _id if valid ObjectId
+            or_clauses = []
+            emails = [e for e in emails_or_ids if "@" in str(e)]
+            ids = [ObjectId(e) for e in emails_or_ids if not ("@" in str(e)) and ObjectId.is_valid(str(e))]
+            if emails:
+                or_clauses.append({"contactInfo.email": {"$in": emails}})
+            if ids:
+                or_clauses.append({"_id": {"$in": ids}})
+            if or_clauses:
+                cursor = patients_collection.find({"$or": or_clauses}, {"fcm_token": 1})
+                async for p in cursor:
+                    t = p.get("fcm_token")
+                    if t:
+                        tokens.append(t)
+    return tokens
+
+
+async def send_notification_internal_async(notif_oid):
+    """Internal helper: send notification synchronously via Firebase in a threadpool and store delivery summary."""
+    notif = await db["notifications"].find_one({"_id": ObjectId(notif_oid)}) if not isinstance(notif_oid, ObjectId) else await db["notifications"].find_one({"_id": notif_oid})
+    if not notif:
+        return {"ok": False, "detail": "not found"}
+
+    recipients = notif.get("recipients", {"all": True})
+    tokens = await _collect_tokens_for_recipients_async(recipients)
+
+    if not tokens:
+        await db["notifications"].update_one({"_id": ObjectId(notif_oid)}, {"$set": {"sent": False, "sent_at": datetime.utcnow(), "delivery_summary": {"reason": "no_tokens"}}})
+        return {"ok": False, "detail": "no_recipient_tokens"}
+
+    title = notif.get("title") or "Message from your doctor"
+    body = notif.get("message", "")
+    image_ids = notif.get("image_file_ids", []) or []
+    image_urls = [f"{os.getenv('SERVER_BASE_URL','http://localhost:8000')}/files/{iid}" for iid in image_ids]
+
+    BATCH = 400
+    all_results = []
+    delivery_details = []
+    for i in range(0, len(tokens), BATCH):
+        batch_tokens = tokens[i : i + BATCH]
+        message_payload = messaging.MulticastMessage(
+            notification=messaging.Notification(title=title, body=body, image=image_urls[0] if image_urls else None),
+            data={
+                "notification_id": str(notif.get("_id") or notif_oid),
+                "title": title,
+                "body": body,
+                "images": json.dumps(image_urls),
+            },
+            tokens=batch_tokens,
+        )
+
+        # Blocking send_multicast -> run in executor
+        resp = await asyncio.get_running_loop().run_in_executor(None, lambda: messaging.send_multicast(message_payload))
+        all_results.append({"success": resp.success_count, "failure": resp.failure_count})
+
+        # capture per-token responses
+        for tok, r in zip(batch_tokens, resp.responses):
+            entry = {
+                "token": tok,
+                "success": getattr(r, "success", False),
+                "message_id": getattr(r, "message_id", None),
+                "error": None,
+            }
+            exc = getattr(r, "exception", None)
+            if exc:
+                entry["error"] = str(exc)
+            delivery_details.append(entry)
+
+    await db["notifications"].update_one({"_id": ObjectId(notif_oid)}, {"$set": {"sent": True, "sent_at": datetime.utcnow(), "delivery_summary": all_results, "delivery_details": delivery_details}})
+    return {"ok": True, "batches": all_results, "delivery_details": delivery_details}
+
+
+@app.post("/notifications", status_code=201)
+async def create_notification(
+    doctor_id: str = Form(...),
+    message: str = Form(...),
+    title: str = Form(...),
+    recipients: str = Form(...),   # JSON string
+    files: List[UploadFile] = File([]),
+):
+    """
+    Doctor creates a notification → doctor backend uploads images →
+    doctor backend forwards the notification to patient backend →
+    patient backend sends FCM.
+    """
+
+    # 1) Parse recipients
+    try:
+        rec = json.loads(recipients)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid recipients JSON")
+
+    # 2) Upload images to *this* backend GridFS (same as before)
+    image_ids = []
+    for f in files:
+        data = await f.read()
+        fid = await gridfs_bucket.upload_from_stream(f.filename, data)
+        image_ids.append(str(fid))
+
+    # 3) Prepare payload for Patient Backend
+    payload = {
+        "doctor_id": doctor_id,
+        "doctor_name": title,
+        "title": title,
+        "message": message,
+        "recipients": rec,
+        "image_file_ids": image_ids,
+    }
+
+    # 4) Forward to patient backend
+    forward_url = PATIENT_BACKEND_URL.rstrip("/") + "/notifications"
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(forward_url, json=payload)
+            patient_response = resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Forward failed: {e}")
+
+    return {
+        "ok": True,
+        "forwarded_to_patient_backend": True,
+        "patient_backend_response": patient_response,
+    }
+
+
+@app.get("/notifications")
+async def list_notifications(doctor_id: Optional[str] = None, limit: int = 50):
+    q = {}
+    if doctor_id:
+        q["doctor_id"] = doctor_id
+    out = []
+    cursor = db["notifications"].find(q).sort("created_at", -1).limit(limit)
+    async for d in cursor:
+        out.append(serialize_doc(d))
+    return {"notifications": out}
+
+
+@app.get("/notifications/latest")
+async def get_latest_notification():
+    """Debug helper: return the most recently created notification document (serialized)."""
+    doc = await db["notifications"].find_one({}, sort=[("created_at", -1)])
+    if not doc:
+        raise HTTPException(status_code=404, detail="No notifications found")
+    return serialize_doc(doc)
+
+
+# --- doc_submissions endpoints (non-breaking additions) ---
+@app.get("/doc-submissions")
+async def list_doc_submissions(doctorId: Optional[str] = None, registration_id: Optional[str] = None, limit: int = 100):
+    """List doc submissions. Optional filters: doctorId, registration_id.
+
+    This endpoint will return submissions from both `doc_submissions` and
+    legacy `patient_submissions` so clients get results regardless of which
+    collection holds the data.
+    """
+    query = {}
+    if doctorId:
+        query["doctor_id"] = doctorId
+    if registration_id:
+        query["registration_id"] = registration_id
+    try:
+        results = []
+
+        # fetch from doc_submissions
+        cursor = doc_submissions_collection.find(query).sort("timestamp", -1).limit(limit)
+        async for doc in cursor:
+            doc = serialize_doc(doc)
+            doc.pop("image_data", None)
+            doc["_source"] = "doc_submissions"
+            results.append(doc)
+
+        # fetch from legacy patient_submissions as well
+        cursor2 = submissions_collection.find(query).sort("timestamp", -1).limit(limit)
+        async for doc in cursor2:
+            doc = serialize_doc(doc)
+            # normalize field names where possible
+            doc.pop("image_data", None)
+            # older submissions use `image_file_id`
+            if "image_file_id" in doc:
+                doc.setdefault("image_file_ids", [doc.get("image_file_id")])
+            doc["_source"] = "patient_submissions"
+            results.append(doc)
+
+        # merge and sort by timestamp (string ISO produced by serialize_doc)
+        def _ts_key(item):
+            return item.get("timestamp") or item.get("created_at") or ""
+
+        merged = sorted(results, key=_ts_key, reverse=True)
+        return merged[:limit]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/doc-submissions/{submission_id}/file")
+async def get_doc_submission_file(submission_id: str):
+    """Return submission image bytes (supports base64 stored image_data or file_path on disk)."""
+    try:
+        # Try to find the submission in doc_submissions first, then legacy patient_submissions
+        doc = None
+        try:
+            oid = ObjectId(submission_id)
+            doc = await doc_submissions_collection.find_one({"_id": oid})
+        except Exception:
+            # not a valid ObjectId for doc_submissions lookup
+            pass
+
+        if not doc:
+            # try string id lookup in doc_submissions
+            doc = await doc_submissions_collection.find_one({"_id": submission_id})
+
+        if not doc:
+            # fallback to legacy submissions collection
+            try:
+                oid = ObjectId(submission_id)
+                doc = await submissions_collection.find_one({"_id": oid})
+            except Exception:
+                doc = await submissions_collection.find_one({"_id": submission_id})
+
+        if not doc:
+            raise HTTPException(status_code=404, detail="Submission not found")
+
+        # If GridFS-backed file id exists, stream it
+        image_id = doc.get("image_file_id") or (doc.get("image_file_ids") and (doc.get("image_file_ids")[0] if isinstance(doc.get("image_file_ids"), list) else None))
+        if image_id:
+            try:
+                fid = ObjectId(image_id)
+            except Exception:
+                fid = image_id
+            try:
+                stream = await gridfs_bucket.open_download_stream(fid)
+                file_doc = await db['fs.files'].find_one({'_id': fid})
+                filename = file_doc.get('filename', '') if file_doc else ''
+                content_type = (file_doc.get('metadata', {}).get('contentType') if file_doc and isinstance(file_doc.get('metadata'), dict) else None) or mimetypes.guess_type(filename)[0] or 'image/jpeg'
+                return StreamingResponse(stream, media_type=content_type)
+            except Exception:
+                # fallthrough to other storage methods
+                pass
+
+        # if image_data is stored as base64 or data URI
+        if doc.get("image_data"):
+            b64 = doc["image_data"]
+            if isinstance(b64, str) and b64.startswith("data:image/"):
+                b64_clean = b64.split(",", 1)[1]
+            else:
+                b64_clean = b64
+            try:
+                import base64
+                img_bytes = base64.b64decode(b64_clean)
+                from fastapi.responses import Response
+                return Response(content=img_bytes, media_type="image/jpeg")
+            except Exception:
+                # fallthrough to file_path
+                pass
+
+        # otherwise serve saved file path
+        file_path = doc.get("file_path")
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found on disk or GridFS")
+        from fastapi.responses import FileResponse
+        return FileResponse(path=file_path, filename=os.path.basename(file_path))
+    except Exception as e:
+        # log full traceback to stdout and to a file for debugging
+        import traceback
+        tb = traceback.format_exc()
+        print("Exception in post_submission_message:\n", tb)
+        try:
+            os.makedirs(os.path.join(os.path.dirname(__file__), 'logs'), exist_ok=True)
+            with open(os.path.join(os.path.dirname(__file__), 'logs', 'errors.log'), 'a', encoding='utf-8') as fh:
+                fh.write(f"\n--- {datetime.utcnow().isoformat()} ---\n")
+                fh.write(tb)
+        except Exception:
+            pass
+        # also try to save the traceback to the database error_logs collection for later inspection
+        try:
+            if db is not None:
+                await db['error_logs'].insert_one({
+                    'at': datetime.utcnow(),
+                    'context': 'post_submission_message',
+                    'submission_id': submission_id,
+                    'traceback': tb,
+                })
+        except Exception:
+            # don't raise from logging attempt
+            pass
+        if "invalid id" in str(e).lower() or "bson" in str(e).lower():
+            raise HTTPException(status_code=404, detail="Submission not found")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/doc-submissions/{submission_id}/messages")
+async def post_submission_message(submission_id: str, payload: dict):
+    """
+    Push a message into a doc submission's messages array.
+
+    Expects JSON body like:
+    {
+      "from": "doctor",
+      "doctorId": "doc123",
+      "message": "Hello",
+      "timestamp": "ISO8601"
+    }
+    """
+    try:
+        # 1) Locate the submission in doc_submissions or legacy patient_submissions
+        doc = None
+        found_in = None
+
+        # try ObjectId in doc_submissions
+        try:
+            oid = ObjectId(submission_id)
+            doc = await doc_submissions_collection.find_one({"_id": oid})
+            if doc:
+                found_in = doc_submissions_collection
+        except Exception:
+            pass
+
+        # try string id in doc_submissions
+        if not doc:
+            doc = await doc_submissions_collection.find_one({"_id": submission_id})
+            if doc:
+                found_in = doc_submissions_collection
+
+        # fallback to legacy submissions collection
+        if not doc:
+            try:
+                oid = ObjectId(submission_id)
+                doc = await submissions_collection.find_one({"_id": oid})
+            except Exception:
+                doc = await submissions_collection.find_one({"_id": submission_id})
+            if doc:
+                found_in = submissions_collection
+
+        if not doc:
+            raise HTTPException(status_code=404, detail="Submission not found")
+
+        # 2) Build the message object
+        message = {
+            "from": payload.get("from", "doctor"),
+            "doctorId": payload.get("doctorId"),
+            "message": payload.get("message"),
+            "timestamp": payload.get("timestamp") or datetime.utcnow().isoformat(),
+        }
+
+        # 3) Identify Collection and Filter
+        target_coll = found_in if found_in is not None else doc_submissions_collection
+        filter_id = doc.get("_id")
+
+        # 4) FIX: Check if 'messages' field is null or missing and initialize it if necessary
+        # This prevents the "Cannot apply $push to non-array field" error
+        if doc.get("messages") is None:
+            await target_coll.update_one(
+                {"_id": filter_id},
+                {"$set": {"messages": []}}
+            )
+
+        # 5) Perform the push
+        result = await target_coll.update_one(
+            {"_id": filter_id},
+            {"$push": {"messages": message}},
+        )
+
+        # Debug: if nothing matched, that’s a clear bug
+        if result.matched_count == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Submission not found during update (filter_id={repr(filter_id)})",
+            )
+
+        # DO NOT treat modified_count == 0 as a fatal error anymore
+        return {
+            "status": "ok",
+            "matched_count": result.matched_count,
+            "modified_count": result.modified_count,
+            "collection": "doc_submissions" if target_coll is doc_submissions_collection else "patient_submissions",
+        }
+
+    except HTTPException:
+        # propagate intended HTTP errors
+        raise
+    except Exception as e:
+        # Log full traceback so we can see real Mongo errors etc.
+        import traceback, os
+        tb = traceback.format_exc()
+        print("Exception in post_submission_message:\n", tb)
+        try:
+            os.makedirs(os.path.join(os.path.dirname(__file__), "logs"), exist_ok=True)
+            with open(
+                os.path.join(os.path.dirname(__file__), "logs", "doc_submission_errors.log"),
+                "a",
+                encoding="utf-8",
+            ) as fh:
+                fh.write(f"\n--- {datetime.utcnow().isoformat()} ---\n")
+                fh.write(tb)
+        except Exception:
+            pass
+        try:
+            if db is not None:
+                await db["error_logs"].insert_one(
+                    {
+                        "at": datetime.utcnow(),
+                        "context": "post_submission_message",
+                        "submission_id": submission_id,
+                        "payload": payload,
+                        "traceback": tb,
+                    }
+                )
+        except Exception:
+            pass
+
+        if "invalid id" in str(e).lower() or "bson" in str(e).lower():
+            raise HTTPException(status_code=404, detail="Submission not found")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/doc-submissions/{submission_id}/messages")
+async def admin_post_submission_message(submission_id: str, payload: dict):
+    """Admin-safe endpoint to push a message into a submission (no broadcaster).
+
+    Use this for debugging or when client messages are failing. This endpoint
+    will attempt to find the document in `doc_submissions` first and then
+    `patient_submissions`, and performs the $push. It returns detailed JSON
+    about which collection was updated.
+    """
+    # Basic payload validation
+    if not isinstance(payload, dict) or not payload.get("message"):
+        raise HTTPException(status_code=400, detail="Invalid payload; 'message' required")
+
+    try:
+        # locate the document in doc_submissions then fallback to patient_submissions
+        doc = None
+        found_collection_name = None
+        try:
+            oid = ObjectId(submission_id)
+            doc = await doc_submissions_collection.find_one({"_id": oid})
+            if doc:
+                found_collection_name = "doc_submissions"
+        except Exception:
+            pass
+
+        if not doc:
+            doc = await doc_submissions_collection.find_one({"_id": submission_id})
+            if doc:
+                found_collection_name = "doc_submissions"
+
+        if not doc:
+            try:
+                oid = ObjectId(submission_id)
+                doc = await submissions_collection.find_one({"_id": oid})
+            except Exception:
+                doc = await submissions_collection.find_one({"_id": submission_id})
+            if doc:
+                found_collection_name = "patient_submissions"
+
+        if not doc:
+            raise HTTPException(status_code=404, detail="Submission not found")
+
+        message = {
+            "from": payload.get("from", "doctor"),
+            "doctorId": payload.get("doctorId"),
+            "message": payload.get("message"),
+            "timestamp": payload.get("timestamp") or datetime.utcnow().isoformat(),
+        }
+
+        target_coll = doc_submissions_collection if found_collection_name == "doc_submissions" else submissions_collection
+        filter_id = ObjectId(doc.get("_id")) if ObjectId.is_valid(str(doc.get("_id"))) else doc.get("_id")
+        result = await target_coll.update_one({"_id": filter_id}, {"$push": {"messages": message}})
+        if result.modified_count == 0:
+            return JSONResponse(status_code=500, content={"ok": False, "reason": "no_modified_count", "raw": result.raw_result})
+
+        return {"ok": True, "collection": found_collection_name, "updated": True, "message": message}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print("admin_post_submission_message exception:\n", tb)
+        # attempt to persist
+        try:
+            if db is not None:
+                await db['error_logs'].insert_one({'at': datetime.utcnow(), 'context': 'admin_post_submission', 'submission_id': submission_id, 'traceback': tb})
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# NOTE: /notifications/{nid}/send removed — forwarding to patient backend will handle sending
+
+
+# NOTE: token storage endpoint removed from doctor backend.
+# Flutter patient app should only send tokens to the patient backend.
+
+
+# In Doctor Backend main.py
+
+# ...and replace it with this.
+@app.get("/submissions/doctor/{doctor_id}")
+async def get_submissions_for_doctor(doctor_id: str):
+    """
+    Fetches a summary list of the 4 NEWEST UN-ARCHIVED submissions.
+    """
+    submissions = []
+    query = {"doctor_id": doctor_id, "is_archived": {"$ne": True}}
+
+    # <-- MODIFIED QUERY: Added .limit(4)
+    cursor = submissions_collection.find(query).sort("timestamp", -1).limit(4)
+
+    async for doc in cursor:
+        submissions.append(serialize_doc(doc))
+    return submissions
+
+
+# In Doctor Backend main.py, add this new endpoint
+
+@app.get("/submissions/doctor/{doctor_id}/history")
+async def get_submission_history(doctor_id: str):
+    """
+    Fetches ALL submissions for a doctor (archived and not), for the history page.
+    """
+    submissions = []
+    query = {"doctor_id": doctor_id} # No filter for "is_archived"
+
+    cursor = submissions_collection.find(query).sort("timestamp", -1)
+
+    async for doc in cursor:
+        submissions.append(serialize_doc(doc))
+    return submissions
+
+
+@app.get("/submissions/{submission_id}")
+async def get_submission_details(submission_id: str):
+    try:
+        oid = ObjectId(submission_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid submission ID")
+    submission = await submissions_collection.find_one({"_id": oid})
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    await submissions_collection.update_one({"_id": oid}, {"$set": {"is_viewed": True}})
+    return serialize_doc(submission)
+
+@app.post("/doctors", status_code=201)
+async def register_doctor(doctor: Doctor):
+    # ... (existing code)
+    existing_doctor = await doctors_collection.find_one({"email": doctor.email})
+    if existing_doctor:
+        raise HTTPException(status_code=400, detail="Doctor with this email already exists")
+    hashed_password = pwd_context.hash(doctor.password)
+    doctor_dict = doctor.dict()
+    doctor_dict["password"] = hashed_password
+    result = await doctors_collection.insert_one(doctor_dict)
+    return {"id": str(result.inserted_id), "message": "Doctor registered successfully"}
+
+@app.post("/login/doctor")
+async def login_doctor(payload: dict):
+    # ... (existing code)
+    email = payload.get("email")
+    password = payload.get("password")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    doctor = await doctors_collection.find_one({"email": email})
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    if not pwd_context.verify(password, doctor["password"]):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    return {"_id": str(doctor["_id"]), "name": doctor["name"], "email": doctor["email"]}
+
+@app.post("/patients/{email}/messages")
+async def send_message_to_patient(email: str, payload: dict):
+    # ... (existing code)
+    print(f"Received message for {email}: {payload.get('message')}")
+    return {"message": "Message received successfully"}
+
+@app.post("/patients")
+async def add_patient(patient: Patient):
+    # ... (existing code)
+    patient_dict = patient.dict()
+    result = await patients_collection.insert_one(patient_dict)
+    return {"id": str(result.inserted_id), "message": "Patient added successfully"}
+
+
+# <-- NEW ENDPOINT FOR SENDING NOTES AND ARCHIVING -->
+# In Doctor Backend main.py
+
+@app.post("/submissions/{submission_id}/notes")
+async def create_note_for_submission(submission_id: str, note: NoteCreate):
+    try:
+        oid = ObjectId(submission_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid submission ID")
+
+    submission = await submissions_collection.find_one({"_id": oid})
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    # 1. Create and insert the message for the patient
+    message = {
+        "patient_id": submission["patient_id"],
+        "doctor_id": submission["doctor_id"],
+        "note_text": note.note,
+        "submission_ref_id": submission_id,
+        "timestamp": datetime.utcnow(),
+        "direction": "doctor_to_patient",
+        # include the clinical fields so the patient/message record has them
+        "pain_scale": submission.get("pain_scale"),
+        "swelling": submission.get("swelling", 0),
+        "redness": submission.get("redness", 0),
+        "discharge": submission.get("discharge", 0),
+        "comments": submission.get("comments", "")
+    }
+    await messages_collection.insert_one(message)
+
+    # 2. Add a record to the patient's main history
+    history_entry = {
+        "at": datetime.utcnow(),
+        "problem": f"Reviewed submission: Pain Scale {submission.get('pain_scale',0)}/10.",
+        "doctor_notes": note.note,
+        "submission_image_id": str(submission["image_file_id"]),
+        # include the additional observation fields for the patient's history snapshot
+        "swelling": submission.get("swelling", 0),
+        "redness": submission.get("redness", 0),
+        "discharge": submission.get("discharge", 0),
+        "comments": submission.get("comments", ""),
+        "procedure_done": False
+    }
+
+    # Robustly handle cases where the patient's `history` field is not an array
+    patient_id_raw = submission.get("patient_id")
+    if not patient_id_raw:
+        raise HTTPException(status_code=400, detail="Submission missing patient_id")
+
+    # Try multiple possible matches: _id (ObjectId), registrationId, and emails in common locations
+    patient_doc = None
+    try:
+        # if patient_id_raw is an ObjectId string, prefer _id lookup
+        if ObjectId.is_valid(str(patient_id_raw)):
+            patient_doc = await patients_collection.find_one({"_id": ObjectId(str(patient_id_raw))})
+    except Exception:
+        patient_doc = None
+
+    if not patient_doc:
+        # build a broad OR query that covers likely fields where email/registration might be stored
+        or_clauses = [
+            {"registrationId": patient_id_raw},
+            {"contactInfo.email": patient_id_raw},
+            {"patientDetails.email": patient_id_raw},
+            {"email": patient_id_raw},
+            {"patientDetails.registrationId": patient_id_raw},
+            {"patientDetails.phone": patient_id_raw},
+            {"contactInfo.phone": patient_id_raw},
+        ]
+        # remove any empty clauses
+        or_clauses = [c for c in or_clauses if list(c.values())[0] is not None and list(c.values())[0] != ""]
+
+        if or_clauses:
+            patient_doc = await patients_collection.find_one({"$or": or_clauses})
+
+    if not patient_doc:
+        raise HTTPException(status_code=404, detail=f"Patient not found for patient_id={patient_id_raw}")
+
+    patient_oid = patient_doc.get("_id")
+    existing_history = patient_doc.get("history")
+    # If history is missing or None, set it to a list containing the new entry
+    if existing_history is None:
+        await patients_collection.update_one({"_id": patient_oid}, {"$set": {"history": [history_entry]}})
+    # If it's already a list, push the new entry
+    elif isinstance(existing_history, list):
+        await patients_collection.update_one({"_id": patient_oid}, {"$push": {"history": history_entry}})
+    # If it's a dict/object (older data shape), convert to list [old, new]
+    elif isinstance(existing_history, dict):
+        await patients_collection.update_one({"_id": patient_oid}, {"$set": {"history": [existing_history, history_entry]}})
+    else:
+        # For any other unexpected type, overwrite with a list containing the new entry
+        await patients_collection.update_one({"_id": patient_oid}, {"$set": {"history": [history_entry]}})
+
+    # 3. <-- ADD THIS STEP: Mark the original submission as archived
+    await submissions_collection.update_one(
+        {"_id": oid},
+        {"$set": {"is_archived": True}}
+    )
+
+    return {"message": "Note sent and submission archived successfully"}
+
+
+
+@app.post("/call/token")
+async def proxy_call_token(channel_name: str):
+    forward_url = PATIENT_BACKEND_URL.rstrip("/") + "/call/token"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(forward_url, params={"channel_name": channel_name})
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Forward to patient backend failed: {e}")
+
+    try:
+        return JSONResponse(status_code=resp.status_code, content=resp.json())
+    except ValueError:
+        return JSONResponse(status_code=resp.status_code, content={"raw": resp.text})
+
+
+# ---------------------------------------------------------
+# VISION & AMSLER ENDPOINTS
+# ---------------------------------------------------------
+
+@app.post("/vision/amsler", status_code=201)
+async def submit_amsler_test(
+    patient_id: str = Form(...),
+    eye_side: str = Form(...),
+    notes: Optional[str] = Form(None),
+    image: UploadFile = File(...),
+):
+    """
+    Uploads the user's drawing on the Amsler Grid.
+    """
+    # 1. Upload the Drawing Image
+    data = await image.read()
+    file_id = await gridfs_bucket.upload_from_stream(
+        image.filename,
+        data,
+        metadata={"contentType": image.content_type},
+    )
+
+    # 2. Create the Record
+    test_doc = {
+        "patient_id": patient_id,
+        "test_type": "Amsler Grid",
+        "eye_side": eye_side,
+        "image_file_id": str(file_id),
+        "notes": notes,
+        "timestamp": datetime.utcnow(),
+    }
+
+    # 3. Insert into specific amsler collection
+    res = await amsler_collection.insert_one(test_doc)
+
+    return {
+        "status": "success",
+        "test_id": str(res.inserted_id),
+        "message": "Amsler test saved",
+    }
+
+
+@app.get("/vision/patient/{patient_id}")
+async def get_vision_history(patient_id: str):
+    """
+    Fetches history of vision tests (Amsler, etc.) for the Vision Screen list.
+    """
+    history = []
+
+    # 1. Fetch Amsler Tests
+    cursor = amsler_collection.find({"patient_id": patient_id}).sort("timestamp", -1)
+    async for doc in cursor:
+        doc["id"] = str(doc.get("_id"))
+        doc["test_type"] = "Amsler Grid"
+        history.append(serialize_doc(doc))
+
+    # 2. (Optional) Future: fetch and merge other vision tests
+
+    # Sort combined list by newest first
+    history.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
+    return history
+
+@app.post("/call/initiate")
+async def proxy_call_initiate(payload: dict):
+    forward_url = PATIENT_BACKEND_URL.rstrip("/") + "/call/initiate"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(forward_url, json=payload)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Forward to patient backend failed: {e}")
+
+    try:
+        return JSONResponse(status_code=resp.status_code, content=resp.json())
+    except ValueError:
+        return JSONResponse(status_code=resp.status_code, content={"raw": resp.text})
+
+@app.get("/doctors/{doctor_id}/adherence-list")
+async def get_adherence_patients(doctor_id: str):
+    """
+    Groups adherence records by patient_id to show a list of patients
+    and their complete history.
+    """
+    pipeline = [
+        # 1. Sort by newest records first
+        {"$sort": {"created_at": -1}},
+
+        # 2. Group by patient_id
+        {"$group": {
+            "_id": "$patient_id",
+            "patient_name": {"$first": "$patient_name"},
+            "last_medication_at": {"$first": "$created_at"},
+            "medication_history": {"$push": {
+                "medicine": "$medicine",
+                "taken": "$taken",
+                "created_at": "$created_at"
+            }}
+        }},
+
+        # 3. Sort patients by who took medicine most recently
+        {"$sort": {"last_medication_at": -1}}
+    ]
+
+    patients = []
+    # Use the adherence_collection we defined earlier
+    async for doc in adherence_collection.aggregate(pipeline):
+        doc["patient_id"] = str(doc["_id"])
+        # Ensure name isn't null if missing in DB
+        if not doc.get("patient_name"):
+            doc["patient_name"] = "Unknown Patient"
+        patients.append(serialize_doc(doc))
+
+    return patients

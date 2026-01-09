@@ -1,0 +1,79 @@
+
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime
+
+
+class ParsedData(BaseModel):
+    patient_id: Optional[str]
+    patient_name: Optional[str]
+    age_sex: Optional[str]
+    vision_right: Optional[str]
+    vision_left: Optional[str]
+    k1_right: Optional[str]
+    k1_left: Optional[str]
+    k2_right: Optional[str]
+    k2_left: Optional[str]
+    axl_right: Optional[str]
+    axl_left: Optional[str]
+    power2_right: Optional[str]
+    power2_left: Optional[str]
+    procedure_type: Optional[str]
+    procedure_name: Optional[str]
+
+
+class Document(BaseModel):
+    filename: Optional[str]
+    parsed: ParsedData
+    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+
+
+class TimestampedEntry(BaseModel):
+    value: str
+    at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+
+
+class HistoryEntry(BaseModel):
+    at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    problem: Optional[str] = None
+    medicines: Optional[List[str]] = None
+    procedure_type: Optional[str] = None
+    procedure_done: Optional[bool] = False
+
+
+class Patient(BaseModel):
+    name: str
+    email: str
+    phone: str
+    documents: Optional[List[Document]] = Field(default_factory=list)
+    # history becomes an array of entries (problem snapshot, suggested meds, procedure, timestamp)
+    history: Optional[List[HistoryEntry]] = Field(default_factory=list)
+    # arrays with timestamped entries
+    present_problems: Optional[List[TimestampedEntry]] = Field(default_factory=list)
+    medicines: Optional[List[TimestampedEntry]] = Field(default_factory=list)
+
+# Add this new class to the end of your models.py file
+
+class PatientSubmission(BaseModel):
+    id: Optional[str] = Field(default=None, alias="_id")
+    patient_id: str
+    patient_name: str
+    doctor_id: str # To know which doctor this is for
+    image_file_id: str # The ID of the image stored in GridFS
+    pain_scale: int
+    swelling: Optional[int] = 0
+    redness: Optional[int] = 0
+    discharge: Optional[int] = 0
+    comments: Optional[str] = None
+    is_viewed: bool = False
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+# Add this class to your models.py file
+
+class Doctor(BaseModel):
+    name: str
+    specialization: str
+    email: str
+    phone: Optional[str] = None
+    password: str
+class NoteCreate(BaseModel):
+    note: str
