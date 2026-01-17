@@ -6,8 +6,8 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.org.doctorchakravue.core.ui.theme.ChakravueTheme
-import com.org.doctorchakravue.core.ui.surface.ChakravueSurface
+import com.org.doctorchakravue.core.ui.theme.AppBackground
+import com.org.doctorchakravue.core.ui.theme.AppTheme
 import com.org.doctorchakravue.data.DoctorRepository
 import com.org.doctorchakravue.data.Submission
 import com.org.doctorchakravue.features.adherence.AdherenceScreen
@@ -24,8 +24,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 @Preview
 fun App() {
-    ChakravueTheme {
-        ChakravueSurface {
+    AppTheme {
+        AppBackground {
             val navController = rememberNavController()
             val repository = remember { DoctorRepository() }
 
@@ -120,4 +120,3 @@ fun App() {
         }
     }
 }
-

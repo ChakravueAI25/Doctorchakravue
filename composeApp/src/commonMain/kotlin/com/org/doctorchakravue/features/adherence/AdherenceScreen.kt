@@ -18,6 +18,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.org.doctorchakravue.core.ui.theme.AppBackground
+import com.org.doctorchakravue.core.ui.theme.AppTheme
 import com.org.doctorchakravue.core.ui.theme.DoctorBlue
 import com.org.doctorchakravue.core.ui.theme.DoctorGreen
 import com.org.doctorchakravue.data.AdherencePatient
@@ -41,59 +43,63 @@ fun AdherenceScreen(
         isLoading = false
     }
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Drug Adherence", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Back")
-                    }
+    AppTheme {
+        AppBackground {
+            Scaffold(
+                topBar = {
+                    CenterAlignedTopAppBar(
+                        title = { Text("Drug Adherence", fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.Default.ArrowBack, "Back")
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                    )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
-            )
-        },
-        containerColor = Color.White
-    ) { padding ->
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = DoctorGreen)
-            }
-        } else if (selectedPatient != null) {
-            // Detail view
-            PatientAdherenceDetail(
-                patient = selectedPatient!!,
-                onBack = { selectedPatient = null }
-            )
-        } else {
-            // List view
-            if (patients.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.Medication,
-                            contentDescription = null,
-                            tint = Color.Gray,
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("No medication history found.", color = Color.Gray)
+                containerColor = Color.White
+            ) { padding ->
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = DoctorGreen)
                     }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(vertical = 16.dp)
-                ) {
-                    items(patients) { patient ->
-                        PatientAdherenceCard(
-                            patient = patient,
-                            onClick = { selectedPatient = patient }
-                        )
+                } else if (selectedPatient != null) {
+                    // Detail view
+                    PatientAdherenceDetail(
+                        patient = selectedPatient!!,
+                        onBack = { selectedPatient = null }
+                    )
+                } else {
+                    // List view
+                    if (patients.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize().padding(padding),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.Medication,
+                                    contentDescription = null,
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text("No medication history found.", color = Color.Gray)
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(vertical = 16.dp)
+                        ) {
+                            items(patients) { patient ->
+                                PatientAdherenceCard(
+                                    patient = patient,
+                                    onClick = { selectedPatient = patient }
+                                )
+                            }
+                        }
                     }
                 }
             }
