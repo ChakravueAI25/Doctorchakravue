@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
 
 private val LightColorScheme = lightColorScheme(
     primary = Color(0xFF4CAF50),
@@ -40,8 +41,8 @@ fun AppTheme(content: @Composable () -> Unit) {
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFFBFE6D3), // brand green – ~3x darker
-                            Color(0xFFC6D9F2)  // brand blue – ~3x darker
+                            Color(0xFFBFE6D3), // brand green
+                            Color(0xFFC6D9F2)  // brand blue
                         )
                     )
                 )
@@ -55,6 +56,29 @@ fun AppTheme(content: @Composable () -> Unit) {
 fun AppBackground(content: @Composable () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         content()
+    }
+}
+
+/**
+ * CardView - Consistent card styling across the app.
+ * No elevation, no border, rounded corners, translucent white background.
+ */
+@Composable
+fun CardView(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(16.dp),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                color = Color.White.copy(alpha = 0.85f),
+                shape = shape
+            )
+            .padding(16.dp)
+    ) {
+        Column(content = content)
     }
 }
 

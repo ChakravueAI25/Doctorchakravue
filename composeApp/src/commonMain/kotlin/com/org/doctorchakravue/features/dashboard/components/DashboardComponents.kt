@@ -25,19 +25,31 @@ import com.org.doctorchakravue.data.Submission
 @Composable
 fun UrgentReviewCard(submission: Submission, onClick: () -> Unit) {
     val imageUrl = "https://doctor.chakravue.co.in/files/${submission.imageId}"
+    val painScale = submission.painScale ?: 0
 
-    Card(
-        modifier = Modifier.width(160.dp).height(200.dp).clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(4.dp)
+    val painColor = when {
+        painScale >= 7 -> Color(0xFFD32F2F) // High pain - Red
+        painScale >= 4 -> Color(0xFFF57C00) // Medium pain - Orange
+        else -> DoctorGreen // Low pain - Green
+    }
+
+    Box(
+        modifier = Modifier
+            .width(160.dp)
+            .height(200.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.85f))
+            .clickable { onClick() }
     ) {
-        Column {
+        Column(modifier = Modifier.fillMaxSize()) {
             // Eye Image
             AsyncImage(
                 model = imageUrl,
                 contentDescription = null,
-                modifier = Modifier.height(110.dp).fillMaxWidth().background(Color.Gray),
+                modifier = Modifier
+                    .height(110.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
                 contentScale = ContentScale.Crop
             )
 
@@ -55,12 +67,12 @@ fun UrgentReviewCard(submission: Submission, onClick: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFFFE0E0)) // Light Red
+                        .background(painColor.copy(alpha = 0.15f))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "Pain: ${submission.painScale}/10",
-                        color = Color(0xFFD32F2F), // Red Text
+                        text = "Pain: $painScale/10",
+                        color = painColor,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -95,7 +107,7 @@ fun QuickActionButton(icon: ImageVector, label: String, color: Color, onClick: (
 @Composable
 fun HistoryItem(submission: Submission) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Status Icon
@@ -103,7 +115,7 @@ fun HistoryItem(submission: Submission) {
             modifier = Modifier.size(40.dp).clip(CircleShape).background(DoctorLightGray),
             contentAlignment = Alignment.Center
         ) {
-            Text("👁", fontSize = 18.sp) // Simple emoji instead of icon
+            Text("👁", fontSize = 18.sp)
         }
 
         Spacer(modifier = Modifier.width(16.dp))
@@ -115,7 +127,7 @@ fun HistoryItem(submission: Submission) {
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = "Pain Scale: ${submission.painScale}",
+                text = "Pain Scale: ${submission.painScale ?: 0}/10",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
@@ -128,4 +140,3 @@ fun HistoryItem(submission: Submission) {
         )
     }
 }
-
