@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:115564934409:android:9dcc2b2212c029374e0fd8",
+        "android_client_info": {
+          "package_name": "com.org.doctorchakravue"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOrmOE-SBE8wL438K0YRbClMjNIsuVtys"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:115564934409:android:24611307ba0fe9544e0fd8",
         "android_client_info": {
           "package_name": "com.org.patientchakravue"
