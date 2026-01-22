@@ -9,8 +9,8 @@ object Navigator {
     val bottomNavScreens = setOf(
         "dashboard",
         "patients",
-        "pain_scale_history",
-        "notifications"
+        "notifications",
+        "adherence"
     )
 
     fun shouldShowBottomNav(currentRoute: String?): Boolean {

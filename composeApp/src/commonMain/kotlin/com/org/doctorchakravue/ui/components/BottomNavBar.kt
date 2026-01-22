@@ -1,6 +1,7 @@
 package com.org.doctorchakravue.ui.components
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
@@ -15,7 +16,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.org.doctorchakravue.core.ui.theme.DoctorGreen
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import com.org.doctorchakravue.ui.theme.DoctorGreen
 
 /**
  * Represents a bottom navigation item.
@@ -50,10 +55,10 @@ fun BottomNavBar(
             unselectedIcon = Icons.Outlined.People
         ),
         BottomNavItem(
-            route = "pain_scale_history",
-            label = "Reviews",
-            selectedIcon = Icons.Filled.Home, // Will use a custom icon or emoji
-            unselectedIcon = Icons.Outlined.Home
+            route = "adherence",
+            label = "Adherence",
+            selectedIcon = Icons.Filled.AssignmentTurnedIn,
+            unselectedIcon = Icons.Filled.AssignmentTurnedIn
         ),
         BottomNavItem(
             route = "notifications",
@@ -63,19 +68,18 @@ fun BottomNavBar(
         )
     )
 
-    NavigationBar(containerColor = Color.White) {
+    NavigationBar(
+        containerColor = Color.White,
+        modifier = Modifier.clip(RoundedCornerShape(topStart = 25.dp, topEnd = 25.dp))
+    ) {
         items.forEach { item ->
             val isSelected = currentScreen == item.route
-
             NavigationBarItem(
                 icon = {
-                    when (item.route) {
-                        "pain_scale_history" -> Text(if (isSelected) "📊" else "📈")
-                        else -> Icon(
-                            imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                            contentDescription = item.label
-                        )
-                    }
+                    Icon(
+                        imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                        contentDescription = item.label
+                    )
                 },
                 label = { Text(item.label) },
                 selected = isSelected,
