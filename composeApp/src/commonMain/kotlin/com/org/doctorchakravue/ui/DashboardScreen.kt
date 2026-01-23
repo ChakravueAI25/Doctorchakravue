@@ -212,12 +212,12 @@ fun DashboardScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
                 ) {
-                    // 1. SPACING
+                    //  SPACING
                     item {
                         Spacer(modifier = Modifier.height(12.dp))
                     }
 
-                    // 2. URGENT REVIEWS
+                    //  URGENT REVIEWS
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -258,7 +258,7 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
-                // 3. VIDEO CALL REQUESTS
+                //  VIDEO CALL REQUESTS
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -315,21 +315,7 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
-                // 4. QUICK ACTIONS
-                item {
-                    Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState())
-                    ) {
-                        QuickActionItem("📢", "Broadcast", Color(0xFFFF9800)) { onNavigateToNotifications() }
-                        QuickActionItem("🔍", "Search", Color(0xFF2196F3)) { }
-                        QuickActionItem("📷", "Slitlamp", Color(0xFF9C27B0)) { }
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-
-                // 5. VISION TEST SUBMISSIONS
+                //  VISION TEST SUBMISSIONS
                 item {
                     Text("Vision Test submissions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))

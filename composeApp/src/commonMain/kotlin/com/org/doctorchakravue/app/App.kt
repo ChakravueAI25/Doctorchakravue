@@ -15,7 +15,7 @@ import com.org.doctorchakravue.data.ApiRepository
 import com.org.doctorchakravue.model.AdherencePatient
 import com.org.doctorchakravue.model.Submission
 import com.org.doctorchakravue.ui.*
-import com.org.doctorchakravue.ui.components.BottomNavBar
+import com.org.doctorchakravue.ui.theme.BottomNavBar
 import com.org.doctorchakravue.ui.theme.AppTheme
 import io.ktor.http.encodeURLPathPart
 import kotlinx.serialization.encodeToString

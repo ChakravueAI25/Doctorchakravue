@@ -1,5 +1,6 @@
-package com.org.doctorchakravue.ui.components
+package com.org.doctorchakravue.ui.theme
 
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.Home
@@ -20,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import com.org.doctorchakravue.ui.theme.DoctorGreen
 
 /**
  * Represents a bottom navigation item.
@@ -70,7 +70,9 @@ fun BottomNavBar(
 
     NavigationBar(
         containerColor = Color.White,
-        modifier = Modifier.clip(RoundedCornerShape(topStart = 25.dp, topEnd = 25.dp))
+        modifier = Modifier
+            .height(90.dp)
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
     ) {
         items.forEach { item ->
             val isSelected = currentScreen == item.route
@@ -89,11 +91,11 @@ fun BottomNavBar(
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = DoctorGreen,
-                    selectedTextColor = DoctorGreen,
-                    indicatorColor = DoctorGreen.copy(alpha = 0.1f),
-                    unselectedIconColor = Color.Gray,
-                    unselectedTextColor = Color.Gray
+                    selectedIconColor = Color(0xFF4CAF50),
+                    selectedTextColor = Color(0xFF1976D2),
+                    unselectedIconColor = Color.Black,
+                    unselectedTextColor = Color.Black,
+                    indicatorColor = Color.Transparent
                 )
             )
         }
