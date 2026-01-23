@@ -139,6 +139,32 @@ class ApiRepository(
         }
     }
 
+    // Fetch video call requests for all doctors (doctor_id is always null in DB, so no filtering)
+    suspend fun getVideoCallRequests(status: String? = null): List<com.org.doctorchakravue.model.VideoCallRequest> {
+        return try {
+            val url = if (!status.isNullOrEmpty()) "/videocallrequests?status=$status" else "/videocallrequests"
+            val response = client.get(url)
+
+            // Try to parse as VideoCallRequestsResponse first
+            return try {
+                val parsed: com.org.doctorchakravue.model.VideoCallRequestsResponse = response.body()
+                parsed.requests
+            } catch (e: Exception) {
+                // If that fails, try parsing as a direct list
+                try {
+                    val parsed: List<com.org.doctorchakravue.model.VideoCallRequest> = response.body()
+                    parsed
+                } catch (e2: Exception) {
+                    println("Failed to parse video call requests: ${e2.message}")
+                    emptyList()
+                }
+            }
+        } catch (e: Exception) {
+            println("Failed to fetch video call requests: ${e.message}")
+            emptyList()
+        }
+    }
+
     suspend fun initiateCall(doctorId: String, patientId: String, channelName: String): Boolean {
         return try {
             client.post("/call/initiate") {

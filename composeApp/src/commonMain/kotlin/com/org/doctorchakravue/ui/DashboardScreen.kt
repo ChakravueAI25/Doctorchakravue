@@ -48,6 +48,8 @@ data class DashboardState(
     val urgentReviews: List<Submission> = emptyList(),
     val history: List<Submission> = emptyList(),
     val visionSubmissions: List<Submission> = emptyList()
+    ,
+    val videoCallRequests: List<com.org.doctorchakravue.model.VideoCallRequest> = emptyList()
 )
 
 // --- ViewModel ---
@@ -76,6 +78,7 @@ class DashboardViewModel(private val repository: ApiRepository) {
                 val urgent = repository.getUrgentSubmissions(doctorId)
                 val hist = repository.getHistory(doctorId)
                 val vision = repository.getVisionSubmissions(doctorId)
+                val vrequests = repository.getVideoCallRequests()
 
                 _state.update {
                     it.copy(
@@ -85,6 +88,8 @@ class DashboardViewModel(private val repository: ApiRepository) {
                         urgentReviews = urgent,
                         history = hist,
                         visionSubmissions = vision
+                        ,
+                        videoCallRequests = vrequests
                     )
                 }
             } else {
@@ -118,6 +123,7 @@ class DashboardViewModel(private val repository: ApiRepository) {
                 val urgent = repository.getUrgentSubmissions(doctorId)
                 val hist = repository.getHistory(doctorId)
                 val vision = repository.getVisionSubmissions(doctorId)
+                val vrequests = repository.getVideoCallRequests()
 
                 _state.update {
                     it.copy(
@@ -125,6 +131,8 @@ class DashboardViewModel(private val repository: ApiRepository) {
                         urgentReviews = urgent,
                         history = hist,
                         visionSubmissions = vision
+                        ,
+                        videoCallRequests = vrequests
                     )
                 }
             } else {
@@ -267,27 +275,41 @@ fun DashboardScreen(
                     }
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White.copy(alpha = 0.85f), RoundedCornerShape(16.dp))
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.VideoCall,
-                                contentDescription = null,
-                                modifier = Modifier.size(40.dp),
-                                tint = Color.Gray.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "No pending call requests",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center
-                            )
+                    val vlist = state.videoCallRequests.take(3)  // Get top 3 latest requests
+
+                    if (vlist.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.85f), RoundedCornerShape(16.dp))
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Default.VideoCall,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp),
+                                    tint = Color.Gray.copy(alpha = 0.5f)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "No pending call requests",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        // Display top 3 requests as cards
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            vlist.forEach { request ->
+                                VideoCallRequestCard(request = request, onClick = { onNavigateToVideoCallList() })
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(24.dp))
@@ -501,3 +523,66 @@ private fun VisionTestSubmissionItem(submission: Submission) {
     }
 }
 
+@Composable
+private fun VideoCallRequestCard(
+    request: com.org.doctorchakravue.model.VideoCallRequest,
+    onClick: () -> Unit = {}
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f)),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(DoctorBlue.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideoCall,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = DoctorGreen
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = request.patientName ?: "Unknown Patient",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = request.reason ?: "Video call requested",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Text(
+                text = request.status ?: "pending",
+                style = MaterialTheme.typography.labelSmall,
+                color = DoctorGreen,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}

@@ -84,27 +84,33 @@ db = None
 patients_collection = None
 submissions_collection = None
 doctors_collection = None
+users_collection = None
 messages_collection = None
 doc_submissions_collection = None
 gridfs_bucket = None
 amsler_collection = None
 adherence_collection = None
+videocall_collection = None
 
 
 @app.on_event("startup")
 async def startup_db_client():
     """Create Motor client and collection handles on application startup (binds to the running loop)."""
-    global client, db, patients_collection, submissions_collection, doctors_collection, messages_collection, doc_submissions_collection, gridfs_bucket, amsler_collection, adherence_collection
+    global client, db, patients_collection, submissions_collection, doctors_collection, users_collection, messages_collection, doc_submissions_collection, gridfs_bucket, amsler_collection, adherence_collection
+    global videocall_collection
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
     patients_collection = db["patients"]
     submissions_collection = db["patient_submissions"]
     doctors_collection = db["doctors"]
+    users_collection = db["users"]
     messages_collection = db["messages"]
     doc_submissions_collection = db["doc_submissions"]
     gridfs_bucket = AsyncIOMotorGridFSBucket(db)
     amsler_collection = db["amsler_tests"]
     adherence_collection = db["adherence"]
+    # videocall requests collection - use correct collection name from database
+    videocall_collection = db["video_call_requests"]
 
 
 @app.on_event("shutdown")
@@ -805,17 +811,43 @@ async def register_doctor(doctor: Doctor):
 
 @app.post("/login/doctor")
 async def login_doctor(payload: dict):
-    # ... (existing code)
-    email = payload.get("email")
+    # Frontend sends "email" field, but it maps to "username" in users collection
+    username = payload.get("email")
     password = payload.get("password")
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password are required")
-    doctor = await doctors_collection.find_one({"email": email})
-    if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
-    if not pwd_context.verify(password, doctor["password"]):
-        raise HTTPException(status_code=401, detail="Invalid password")
-    return {"_id": str(doctor["_id"]), "name": doctor["name"], "email": doctor["email"]}
+
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+
+    username = username.strip().lower()
+
+    # USERS collection (primary auth source) — canonical store for long-term migration
+    user = await users_collection.find_one({
+        "username": username,
+        "role": "DOCTOR"
+    })
+
+    if user:
+        if not pwd_context.verify(password, user["hashed_password"]):
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+
+        return {
+            "_id": str(user["_id"]),
+            "name": user.get("full_name"),
+            "email": user.get("username"),  # Map username → email field for frontend
+            "role": user.get("role")
+        }
+
+    # Fallback: legacy doctors collection (backward compatibility during migration)
+    doctor = await doctors_collection.find_one({"email": username})
+    if not doctor or not pwd_context.verify(password, doctor["password"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    return {
+        "_id": str(doctor["_id"]),
+        "name": doctor.get("name"),
+        "email": doctor.get("email"),
+        "role": "DOCTOR"
+    }
 
 @app.post("/patients/{email}/messages")
 async def send_message_to_patient(email: str, payload: dict):
@@ -1063,3 +1095,54 @@ async def get_adherence_patients(doctor_id: str):
         patients.append(serialize_doc(doc))
 
     return patients
+
+
+# --- Video call request endpoints ---
+@app.get("/videocallrequests")
+async def list_videocall_requests(patient_id: Optional[str] = None, status: Optional[str] = None, limit: int = 100):
+    """
+    List videocall requests. Optional filters: patient_id, status.
+
+    NOTE: doctor_id filtering is intentionally removed because doctor_id
+    is currently null in the videocallrequest collection. All active requests
+    should be visible to all doctors. Doctor assignment will be implemented
+    in a future phase when doctor_id is properly populated.
+    """
+    q = {}
+    if patient_id:
+        q["patient_id"] = patient_id
+    if status:
+        q["status"] = status
+
+    out = []
+    cursor = videocall_collection.find(q).sort("created_at", -1).limit(limit)
+    async for doc in cursor:
+        out.append(serialize_doc(doc))
+    return {"videocallrequests": out}
+
+
+@app.get("/videocallrequests/{request_id}")
+async def get_videocall_request(request_id: str):
+    """
+    Fetch a single videocall request by ObjectId or string id.
+
+    Doctor scoping is intentionally not applied because doctor_id is
+    currently null in the collection. Any doctor can access any request
+    using this endpoint. Doctor assignment will be implemented when
+    doctor_id is properly populated.
+    """
+    doc = None
+
+    # Try ObjectId lookup first when valid
+    if ObjectId.is_valid(request_id):
+        doc = await videocall_collection.find_one({"_id": ObjectId(request_id)})
+
+    # Fallback to string id
+    if not doc:
+        doc = await videocall_collection.find_one({"_id": request_id})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Videocall request not found")
+
+    return serialize_doc(doc)
+

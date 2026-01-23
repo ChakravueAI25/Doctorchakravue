@@ -86,20 +86,20 @@ fun VideoCallDetailScreen(
                     modifier = Modifier.size(100.dp).clip(CircleShape).background(DoctorBlue.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(callRequest!!.patientName.firstOrNull()?.uppercase() ?: "?", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = DoctorBlue)
+                    Text(callRequest?.patientName?.firstOrNull()?.uppercase() ?: "?", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = DoctorBlue)
                 }
                 Spacer(modifier = Modifier.height(20.dp))
-                Text(callRequest!!.patientName, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Requested: ${callRequest!!.timestamp}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                Text(callRequest?.patientName ?: "Unknown", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("Requested: ${callRequest?.timestamp ?: ""}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Box(modifier = Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.85f), RoundedCornerShape(16.dp)).padding(20.dp)) {
                     Column {
                         Text("Call Information", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = DoctorBlue)
                         Spacer(modifier = Modifier.height(16.dp))
-                        DetailRow("Status", callRequest!!.status.replaceFirstChar { it.uppercase() })
-                        DetailRow("Patient ID", callRequest!!.patientId)
-                        DetailRow("Request Time", callRequest!!.timestamp)
+                        DetailRow("Status", (callRequest?.status ?: "unknown").replaceFirstChar { it.uppercase() })
+                        DetailRow("Patient ID", callRequest?.patientId ?: "")
+                        DetailRow("Request Time", callRequest?.timestamp ?: "")
                     }
                 }
 

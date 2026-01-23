@@ -33,11 +33,26 @@ fun VideoCallListScreen(
     val repository = remember { ApiRepository() }
     var callRequests by remember { mutableStateOf<List<VideoCallRequest>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val loadRequests = {
+        isLoading = true
+        error = null
+    }
 
     LaunchedEffect(Unit) {
-        // When backend is ready, this will fetch real data
-        callRequests = emptyList()
-        isLoading = false
+        loadRequests()
+        try {
+            // Fetch videocall requests from backend
+            val requests = repository.getVideoCallRequests()
+            callRequests = requests
+            println("Loaded ${requests.size} video call requests")
+        } catch (e: Exception) {
+            error = "Failed to load requests: ${e.message}"
+            println("Error loading video call requests: ${e.message}")
+        } finally {
+            isLoading = false
+        }
     }
 
     Scaffold(
@@ -55,6 +70,19 @@ fun VideoCallListScreen(
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = DoctorGreen)
+            }
+        } else if (error != null) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(padding).padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.VideoCall, null, modifier = Modifier.size(80.dp), tint = Color.Red.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text("Error Loading Requests", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.Red)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(error!!, style = MaterialTheme.typography.bodyMedium, color = Color.Gray, textAlign = TextAlign.Center)
+                }
             }
         } else if (callRequests.isEmpty()) {
             Box(
@@ -76,7 +104,9 @@ fun VideoCallListScreen(
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
                 items(callRequests) { request ->
-                    VideoCallRequestCard(request = request, onClick = { onNavigateToDetail(request.id) })
+                    if (request.id != null) {
+                        VideoCallRequestCard(request = request, onClick = { onNavigateToDetail(request.id!!) })
+                    }
                 }
             }
         }
@@ -101,8 +131,8 @@ private fun VideoCallRequestCard(request: VideoCallRequest, onClick: () -> Unit)
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(request.patientName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(request.timestamp, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text(request.patientName ?: "Unknown", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(request.timestamp ?: "", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
             val (statusColor, statusBg) = when (request.status) {
                 "pending" -> DoctorGreen to DoctorGreen.copy(alpha = 0.1f)
@@ -110,7 +140,7 @@ private fun VideoCallRequestCard(request: VideoCallRequest, onClick: () -> Unit)
                 else -> Color.Gray to Color.Gray.copy(alpha = 0.1f)
             }
             Box(modifier = Modifier.background(statusBg, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                Text(request.status.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall, color = statusColor, fontWeight = FontWeight.SemiBold)
+                Text((request.status ?: "unknown").replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall, color = statusColor, fontWeight = FontWeight.SemiBold)
             }
         }
     }

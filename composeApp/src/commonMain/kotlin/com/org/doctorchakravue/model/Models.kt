@@ -150,10 +150,18 @@ data class NotificationItem(
 )
 
 // --- Video Call Requests ---
+@Serializable
 data class VideoCallRequest(
-    val id: String,
-    val patientName: String,
-    val patientId: String,
-    val timestamp: String,
-    val status: String // pending, missed, completed
+    @SerialName("_id") val id: String? = null,
+    @SerialName("patient_name") val patientName: String? = null,
+    @SerialName("patient_id") val patientId: String? = null,
+    @SerialName("created_at") val timestamp: String? = null,
+    val status: String? = null,
+    val reason: String? = null
+)
+
+@Serializable
+data class VideoCallRequestsResponse(
+    @SerialName("videocallrequests")
+    val requests: List<VideoCallRequest> = emptyList()
 )
