@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
-    // alias(libs.plugins.googleGmsGoogleServices) // Disabled - not needed for now
+    alias(libs.plugins.googleGmsGoogleServices) // Firebase
 }
 
 kotlin {
@@ -33,7 +33,7 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.ktor.client.okhttp) // Android Engine
             implementation(libs.kotlinx.coroutines.android)
-            // implementation("com.google.firebase:firebase-messaging-ktx:24.1.2") // Disabled - not needed for now
+            implementation(libs.firebase.messaging.ktx) // Firebase Cloud Messaging
             implementation("io.agora.rtc:full-sdk:4.6.1")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime-jvm:0.6.0")
 

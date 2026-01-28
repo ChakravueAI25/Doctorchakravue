@@ -231,4 +231,37 @@ class ApiRepository(
             emptyList()
         }
     }
+
+    // --- Slit Lamp Images ---
+    suspend fun getAllSlitLampImages(): List<SlitLampImage> {
+        return try {
+            val response = client.get("/slit-lamp/all")
+            if (response.status.isSuccess()) {
+                val parsed: SlitLampImagesResponse = response.body()
+                parsed.images
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            println("Failed to fetch slit lamp images: ${e.message}")
+            emptyList()
+        }
+    }
+
+    // --- FCM Token Registration ---
+    suspend fun registerFcmToken(doctorId: String, fcmToken: String): Boolean {
+        return try {
+            val response = client.post("/doctors/$doctorId/fcm-token") {
+                setBody(mapOf(
+                    "fcm_token" to fcmToken,
+                    "platform" to "android",
+                    "app_type" to "doctor_app"
+                ))
+            }
+            response.status.isSuccess()
+        } catch (e: Exception) {
+            println("Failed to register FCM token: ${e.message}")
+            false
+        }
+    }
 }

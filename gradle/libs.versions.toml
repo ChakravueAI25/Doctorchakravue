@@ -20,8 +20,8 @@ coil3 = "3.0.3"
 datetime = "0.6.1"
 peekaboo = "0.5.2"
 googleGmsGoogleServices = "4.4.4"
-firebaseMessaging = "25.0.1"
-firebaseMessagingKtx = "25.0.1"
+firebaseMessaging = "24.1.0"
+firebaseMessagingKtx = "24.1.0"
 compose-plugin = "1.7.0"
 
 [libraries]

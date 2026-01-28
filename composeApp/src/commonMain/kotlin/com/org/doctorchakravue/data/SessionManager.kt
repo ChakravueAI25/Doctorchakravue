@@ -30,5 +30,15 @@ class SessionManager {
         settings.remove("doctorId")
         settings.remove("doctorName")
         settings.remove("doctorEmail")
+        // Note: FCM token is NOT removed on logout - it's device-specific
     }
+
+    // --- FCM Token Management ---
+    fun saveFcmToken(token: String) {
+        settings["fcmToken"] = token
+    }
+
+    fun getFcmToken(): String = settings.getString("fcmToken", "")
+
+    fun hasFcmToken(): Boolean = settings.getStringOrNull("fcmToken") != null
 }

@@ -18,6 +18,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.org.doctorchakravue.data.ApiRepository
+import com.org.doctorchakravue.data.SessionManager
+import com.org.doctorchakravue.platform.registerFcmTokenAfterLogin
 import com.org.doctorchakravue.ui.theme.AppBackground
 import com.org.doctorchakravue.ui.theme.AppTheme
 import com.org.doctorchakravue.ui.theme.DoctorGreen
@@ -42,6 +44,7 @@ class LoginViewModel(private val repository: ApiRepository) {
     val state = _state.asStateFlow()
 
     private val scope = CoroutineScope(Dispatchers.Main)
+    private val sessionManager = SessionManager()
 
     fun login(email: String, pass: String) {
         scope.launch {
@@ -50,6 +53,15 @@ class LoginViewModel(private val repository: ApiRepository) {
                 withContext(Dispatchers.Default) {
                     repository.login(email, pass)
                 }
+
+                // Register FCM token after successful login
+                try {
+                    registerFcmTokenAfterLogin(repository, sessionManager)
+                } catch (e: Exception) {
+                    // Don't fail login if FCM registration fails
+                    println("FCM registration failed: ${e.message}")
+                }
+
                 _state.update { it.copy(isLoading = false, isSuccess = true) }
             } catch (e: Exception) {
                 _state.update { it.copy(isLoading = false, error = e.message) }

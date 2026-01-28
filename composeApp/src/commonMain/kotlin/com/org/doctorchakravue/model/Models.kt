@@ -165,3 +165,22 @@ data class VideoCallRequestsResponse(
     @SerialName("videocallrequests")
     val requests: List<VideoCallRequest> = emptyList()
 )
+
+// --- Slit Lamp Images ---
+@Serializable
+data class SlitLampImage(
+    @SerialName("_id") val id: String? = null,
+    val patientId: String? = null,
+    val patientName: String? = null,
+    val doctorName: String? = null,
+    val image: String? = null,  // Base64 encoded image string
+    val notes: String? = null,
+    val timestamp: String? = null,
+    val eyeSide: String? = null  // "Left", "Right", or "Both"
+)
+
+@Serializable
+data class SlitLampImagesResponse(
+    val images: List<SlitLampImage> = emptyList()
+)
+

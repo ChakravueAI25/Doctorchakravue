@@ -91,6 +91,8 @@ gridfs_bucket = None
 amsler_collection = None
 adherence_collection = None
 videocall_collection = None
+slit_lamp_collection = None
+fcm_tokens_collection = None
 
 
 @app.on_event("startup")
@@ -111,6 +113,12 @@ async def startup_db_client():
     adherence_collection = db["adherence"]
     # videocall requests collection - use correct collection name from database
     videocall_collection = db["video_call_requests"]
+    # slit lamp images collection
+    global slit_lamp_collection
+    slit_lamp_collection = db["slit_lamp_images"]
+    # FCM tokens collection (shared with patient backend)
+    global fcm_tokens_collection
+    fcm_tokens_collection = db["fcm_tokens"]
 
 
 @app.on_event("shutdown")
@@ -1145,4 +1153,80 @@ async def get_videocall_request(request_id: str):
         raise HTTPException(status_code=404, detail="Videocall request not found")
 
     return serialize_doc(doc)
+
+
+# --- Slit Lamp Images Endpoints ---
+@app.get("/slit-lamp/all")
+async def get_all_slit_lamp_images(limit: int = 100):
+    """
+    Fetch all slit lamp images from the collection.
+    No filtering - returns all images sorted by timestamp (newest first).
+    """
+    images = []
+    cursor = slit_lamp_collection.find().sort("timestamp", -1).limit(limit)
+    async for doc in cursor:
+        images.append(serialize_doc(doc))
+    return {"images": images}
+
+
+@app.get("/slit-lamp/{image_id}")
+async def get_slit_lamp_image(image_id: str):
+    """
+    Fetch a single slit lamp image by its ID.
+    """
+    doc = None
+
+    if ObjectId.is_valid(image_id):
+        doc = await slit_lamp_collection.find_one({"_id": ObjectId(image_id)})
+
+    if not doc:
+        doc = await slit_lamp_collection.find_one({"_id": image_id})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Slit lamp image not found")
+
+    return serialize_doc(doc)
+
+
+# --- Doctor FCM Token Registration ---
+@app.post("/doctors/{doctor_id}/fcm-token")
+async def register_doctor_fcm_token(doctor_id: str, payload: dict):
+    """
+    Register or update FCM token for a doctor.
+    Stores in fcm_tokens collection (same as patient backend) with doctor_id field.
+    """
+    fcm_token = payload.get("fcm_token")
+    platform = payload.get("platform")
+    app_type = payload.get("app_type", "doctor_app")
+
+    if not fcm_token:
+        raise HTTPException(status_code=400, detail="fcm_token is required")
+
+    now = datetime.utcnow().isoformat()
+    doc = {
+        "doctor_id": doctor_id,
+        "token": fcm_token,
+        "platform": platform,
+        "app_type": app_type,
+        "created_at": now,
+        "last_seen_at": now,
+    }
+
+    # Upsert by token (same pattern as patient backend)
+    await fcm_tokens_collection.update_one(
+        {"token": fcm_token},
+        {"$set": doc},
+        upsert=True
+    )
+
+    return {"status": "ok", "message": "FCM token registered successfully", "doctor_id": doctor_id}
+
+
+@app.delete("/doctors/{doctor_id}/fcm-token")
+async def remove_doctor_fcm_token(doctor_id: str):
+    """
+    Remove FCM token(s) for a doctor (e.g., on logout).
+    """
+    await fcm_tokens_collection.delete_many({"doctor_id": doctor_id})
+    return {"status": "ok", "message": "FCM token removed successfully"}
 

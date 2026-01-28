@@ -88,7 +88,8 @@ fun App() {
                         onNavigateToNotifications = { navController.navigate("notifications") },
                         onNavigateToPainScaleHistory = { navController.navigate("pain_scale_history") },
                         onNavigateToProfile = { navController.navigate("profile") },
-                        onNavigateToVideoCallList = { navController.navigate("video_call_list") }
+                        onNavigateToVideoCallList = { navController.navigate("video_call_list") },
+                        onNavigateToSlitLamp = { navController.navigate("slit_lamp") }
                     )
                 }
 
@@ -185,6 +186,12 @@ fun App() {
                             onBack = { navController.popBackStack() }
                         )
                     }
+                }
+
+                composable("slit_lamp") {
+                    SlitLampScreen(
+                        onBack = { navController.popBackStack() }
+                    )
                 }
             }
         }

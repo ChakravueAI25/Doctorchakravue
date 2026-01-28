@@ -162,7 +162,8 @@ fun DashboardScreen(
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToPainScaleHistory: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
-    onNavigateToVideoCallList: () -> Unit = {}
+    onNavigateToVideoCallList: () -> Unit = {},
+    onNavigateToSlitLamp: () -> Unit = {}
 ) {
     val viewModel = remember { DashboardViewModel(ApiRepository()) }
     val state by viewModel.state.collectAsState()
@@ -311,6 +312,20 @@ fun DashboardScreen(
                                 VideoCallRequestCard(request = request, onClick = { onNavigateToVideoCallList() })
                             }
                         }
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                // QUICK ACTIONS
+                item {
+                    Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
+                        QuickActionItem("📢", "Broadcast", Color(0xFFFF9800)) { onNavigateToNotifications() }
+                        QuickActionItem("🔍", "Search", Color(0xFF2196F3)) { }
+                        QuickActionItem("📷", "Slitlamp", Color(0xFF9C27B0)) { onNavigateToSlitLamp() }
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                 }
