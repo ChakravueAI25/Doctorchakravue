@@ -18,9 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF4CAF50),
-    secondary = Color(0xFF1976D2),
-    tertiary = Color(0xFF4CAF50),
     background = Color.Transparent,
     surface = Color.Transparent,
     onPrimary = Color.White,
@@ -38,9 +35,10 @@ fun AppTheme(content: @Composable () -> Unit) {
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFFBFE6D3), // brand green
-                            Color(0xFFC6D9F2)  // brand blue
+                        colorStops = arrayOf(
+                            0.0f to Color(0xFFFFFFFF),
+                            0.37f to Color(0xFF6A7FC0),
+                            1.0f to Color(0xFF334671)
                         )
                     )
                 )
