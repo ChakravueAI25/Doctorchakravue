@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -142,11 +141,6 @@ class DashboardViewModel(private val repository: ApiRepository) {
         autoRefreshJob?.cancel()
         autoRefreshJob = null
     }
-
-    fun logout() {
-        stopAutoRefresh()
-        repository.logout()
-    }
 }
 
 // ----------------------------------------------------
@@ -155,10 +149,8 @@ class DashboardViewModel(private val repository: ApiRepository) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    onLogout: () -> Unit = {},
     onNavigateToSubmissionDetail: (Submission) -> Unit = {},
     onNavigateToAdherence: (AdherencePatient) -> Unit = {},
-    onNavigateToNotifications: () -> Unit = {},
     onNavigateToPainScaleHistory: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToVideoCallList: () -> Unit = {},
@@ -180,7 +172,8 @@ fun DashboardScreen(
 
     Column(Modifier.fillMaxSize()) {
 
-        // ---------------- HEADER ----------------
+        // ...existing code...
+        // Replace header settings icon with camera icon for slitlamp
         Row(
             Modifier
                 .fillMaxWidth()
@@ -204,10 +197,10 @@ fun DashboardScreen(
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.2f))
-                        .clickable { onNavigateToNotifications() },
+                        .clickable { onNavigateToSlitLamp() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("⚙", fontSize = 18.sp)
+                    Text("📷", fontSize = 18.sp)
                 }
                 Box(
                     Modifier
@@ -226,6 +219,7 @@ fun DashboardScreen(
                 }
             }
         }
+        // ...existing code...
 
         // ---------------- SCROLLABLE CONTENT ----------------
         PullToRefreshBox(
@@ -240,6 +234,9 @@ fun DashboardScreen(
 
                 // ---------- STATS CARDS ----------
                 item {
+                    val todayUrgentCount = state.urgentReviews.countTodaySubmissions()
+                    val todayVideoCallCount = state.videoCallRequests.countTodayVideoCalls()
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -247,20 +244,22 @@ fun DashboardScreen(
                         GlassStatCard(
                             line1 = "Today's",
                             line2 = "Consultations",
-                            value = "1/15",
+                            value = "0",
                             modifier = Modifier.weight(1f)
                         )
                         GlassStatCard(
                             line1 = "Urgent",
                             line2 = "Reviews",
-                            value = "${state.urgentReviews.size}/15",
-                            modifier = Modifier.weight(1f)
+                            value = "$todayUrgentCount",
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigateToPainScaleHistory() }
                         )
                         GlassStatCard(
                             line1 = "Video call",
                             line2 = "Requests",
-                            value = "${state.videoCallRequests.size}/15",
-                            modifier = Modifier.weight(1f)
+                            value = "$todayVideoCallCount",
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigateToVideoCallList() }
                         )
                     }
                 }
@@ -303,34 +302,36 @@ fun DashboardScreen(
                     }
                 }
 
-                // ---------- QUICK ACTIONS ----------
+                // ---------- VIDEO CALL REQUEST SUBMISSIONS ----------
                 item {
-                    SectionHeader("Quick Actions")
+                    SectionHeader("Video Call Requests")
                     Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        QuickActionItem("📢", "Broadcast", Color(0xFF281D51)) { onNavigateToNotifications() }
-                        QuickActionItem("🔍", "Search", Color(0xFF281D51)) { }
-                        QuickActionItem("📷", "Slitlamp", Color(0xFF281D51)) { onNavigateToSlitLamp() }
+                    if (state.videoCallRequests.isEmpty()) {
+                        EmptyStateCard("No video call requests")
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            state.videoCallRequests.take(4).forEach { request ->
+                                VideoCallRequestCard(request) {
+                                    onNavigateToVideoCallList()
+                                }
+                            }
+                        }
                     }
                 }
 
-                // ---------- VISION SUBMISSIONS ----------
+                // ---------- VISION TEST SUBMISSIONS ----------
                 item {
                     SectionHeader("Vision Test Submissions")
                     Spacer(Modifier.height(8.dp))
-                }
-
-                if (state.visionSubmissions.isEmpty()) {
-                    item {
+                    if (state.visionSubmissions.isEmpty()) {
                         EmptyStateCard("No vision test submissions")
-                    }
-                } else {
-                    items(state.visionSubmissions.take(2)) { submission ->
-                        VisionItem(submission) {
-                            onNavigateToSubmissionDetail(submission)
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            state.visionSubmissions.take(4).forEach { submission ->
+                                VisionItem(submission) {
+                                    onNavigateToSubmissionDetail(submission)
+                                }
+                            }
                         }
                     }
                 }
@@ -350,7 +351,8 @@ private fun GlassStatCard(
     line1: String,
     line2: String,
     value: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     Box(
         modifier = modifier
@@ -363,23 +365,26 @@ private fun GlassStatCard(
                 RoundedCornerShape(26.dp)
             )
             .padding(horizontal = 14.dp, vertical = 10.dp)
+            .let { if (onClick != null) it.clickable { onClick() } else it }
     ) {
         Column(
             verticalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxHeight()
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     line1,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 1
                 )
                 Text(
                     line2,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 1
                 )
             }
 
@@ -482,10 +487,14 @@ private fun UrgentReviewCard(submission: Submission, onClick: () -> Unit) {
 
 @Composable
 private fun AdherenceSummaryCard(patient: AdherencePatient, onClick: () -> Unit) {
+    val isValidPatient = !patient.patientName.isNullOrBlank()
+
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .let { if (isValidPatient) it.clickable { onClick() } else it },
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA))
+        colors = CardDefaults.cardColors(containerColor = if (isValidPatient) Color(0xFFF8F9FA) else Color(0xFFEEEEEE))
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -493,7 +502,11 @@ private fun AdherenceSummaryCard(patient: AdherencePatient, onClick: () -> Unit)
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(patient.patientName ?: "Unknown", fontWeight = FontWeight.Bold)
+                Text(
+                    patient.patientName ?: "Unknown",
+                    fontWeight = FontWeight.Bold,
+                    color = if (isValidPatient) Color.Black else Color.Gray
+                )
                 Text(
                     "Last updated: ${formatTimestamp(patient.lastMedicationAt)}",
                     color = Color.Gray,
@@ -511,7 +524,7 @@ private fun AdherenceSummaryCard(patient: AdherencePatient, onClick: () -> Unit)
             }
             Text(
                 "$adherenceRate%",
-                color = adherenceColor,
+                color = if (isValidPatient) adherenceColor else Color.Gray,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
@@ -520,24 +533,47 @@ private fun AdherenceSummaryCard(patient: AdherencePatient, onClick: () -> Unit)
 }
 
 @Composable
-private fun QuickActionItem(emoji: String, label: String, color: Color, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onClick() }
+private fun VideoCallRequestCard(request: com.org.doctorchakravue.model.VideoCallRequest, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F7FF))
     ) {
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = 0.1f)),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(emoji, style = MaterialTheme.typography.headlineSmall)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(request.patientName ?: "Unknown", fontWeight = FontWeight.Bold)
+                Text(
+                    "Requested: ${formatTimestamp(request.timestamp)}",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+            val statusColor = when (request.status) {
+                "completed" -> Color(0xFF334671)
+                "pending" -> Color(0xFFF57C00)
+                else -> Color(0xFF999999)
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(statusColor.copy(alpha = 0.2f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    request.status?.replaceFirstChar { it.uppercase() } ?: "Unknown",
+                    color = statusColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(label, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
     }
 }
+
 
 @Composable
 private fun VisionItem(submission: Submission, onClick: () -> Unit) {
@@ -597,3 +633,64 @@ private fun EmptyStateCard(text: String) {
 
 private fun formatTimestamp(iso: String?): String = iso?.take(10) ?: "Unknown"
 
+/* ============================================================
+   DATE FILTERING EXTENSION FUNCTIONS
+   ============================================================ */
+
+private fun List<Submission>.countTodaySubmissions(): Int {
+    val todayDate = getTodayDateString()
+    return this.count { submission ->
+        val submissionDate = submission.timestamp?.take(10) ?: ""
+        submissionDate == todayDate
+    }
+}
+
+private fun List<com.org.doctorchakravue.model.VideoCallRequest>.countTodayVideoCalls(): Int {
+    val todayDate = getTodayDateString()
+    return this.count { request ->
+        val requestDate = request.timestamp?.take(10) ?: ""
+        requestDate == todayDate
+    }
+}
+
+private fun getTodayDateString(): String {
+    val currentMillis = com.org.doctorchakravue.platform.currentTimeMillis()
+    val timeInSeconds = currentMillis / 1000L
+    val daysSinceEpoch = timeInSeconds / 86400L
+
+    var year = 1970
+    var daysLeft = daysSinceEpoch
+
+    // Calculate year
+    while (true) {
+        val daysInYear = if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) 366 else 365
+        if (daysLeft >= daysInYear) {
+            daysLeft -= daysInYear
+            year++
+        } else {
+            break
+        }
+    }
+
+    // Calculate month and day
+    val daysInMonth = intArrayOf(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+    if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) {
+        daysInMonth[1] = 29
+    }
+
+    var month = 1
+    var dayOfMonth = daysLeft.toInt() + 1
+
+    for (i in daysInMonth.indices) {
+        if (dayOfMonth <= daysInMonth[i]) {
+            month = i + 1
+            break
+        }
+        dayOfMonth -= daysInMonth[i]
+    }
+
+    val monthStr = if (month < 10) "0$month" else month.toString()
+    val dayStr = if (dayOfMonth < 10) "0$dayOfMonth" else dayOfMonth.toString()
+
+    return "$year-$monthStr-$dayStr"
+}
