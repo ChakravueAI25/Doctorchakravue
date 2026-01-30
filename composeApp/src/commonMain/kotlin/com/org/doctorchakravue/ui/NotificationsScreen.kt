@@ -20,7 +20,6 @@ import com.org.doctorchakravue.data.ApiRepository
 import com.org.doctorchakravue.model.PatientSimple
 import com.org.doctorchakravue.ui.theme.AppBackground
 import com.org.doctorchakravue.ui.theme.AppTheme
-import com.org.doctorchakravue.ui.theme.DoctorBlue
 import com.org.doctorchakravue.ui.theme.DoctorGreen
 import kotlinx.coroutines.launch
 
@@ -80,7 +79,7 @@ fun NotificationsScreen(
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Notify", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Notify", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
                 }
                 // SCROLLABLE CONTENT
                 Column(
@@ -92,12 +91,15 @@ fun NotificationsScreen(
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
-                        label = { Text("Title (optional)") },
+                        label = { Text("Title (optional)", color = Color.White) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DoctorBlue,
-                            unfocusedBorderColor = Color.LightGray
+                            focusedBorderColor = Color(0xFF334671),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color.White
                         )
                     )
 
@@ -106,34 +108,37 @@ fun NotificationsScreen(
                     OutlinedTextField(
                         value = message,
                         onValueChange = { message = it },
-                        label = { Text("Message") },
+                        label = { Text("Message", color = Color.White) },
                         modifier = Modifier.fillMaxWidth().height(150.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = DoctorBlue,
-                            unfocusedBorderColor = Color.LightGray
+                            focusedBorderColor = Color(0xFF334671),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color.White
                         )
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    Text("Recipients", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Recipients", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         RadioButton(
                             selected = sendToAll,
                             onClick = { sendToAll = true },
-                            colors = RadioButtonDefaults.colors(selectedColor = DoctorGreen)
+                            colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF334671))
                         )
-                        Text("All Patients", modifier = Modifier.clickable { sendToAll = true })
+                        Text("All Patients", modifier = Modifier.clickable { sendToAll = true }, color = Color.White)
                         Spacer(modifier = Modifier.width(24.dp))
                         RadioButton(
                             selected = !sendToAll,
                             onClick = { sendToAll = false },
-                            colors = RadioButtonDefaults.colors(selectedColor = DoctorGreen)
+                            colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF334671))
                         )
-                        Text("Select Patients", modifier = Modifier.clickable { sendToAll = false })
+                        Text("Select Patients", modifier = Modifier.clickable { sendToAll = false }, color = Color.White)
                     }
 
                     if (!sendToAll) {
@@ -148,9 +153,9 @@ fun NotificationsScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Selected: ${selectedEmails.size} patients", fontWeight = FontWeight.SemiBold)
+                                    Text("Selected: ${selectedEmails.size} patients", fontWeight = FontWeight.SemiBold, color = Color.White)
                                     TextButton(onClick = { showPatientSelector = true }) {
-                                        Text("Select", color = DoctorBlue)
+                                        Text("Select", color = Color(0xFF334671))
                                     }
                                 }
                                 if (isLoadingPatients) {
@@ -169,7 +174,7 @@ fun NotificationsScreen(
                         onClick = { sendNotification() },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = DoctorGreen),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334671)),
                         enabled = !isSending && message.isNotBlank()
                     ) {
                         if (isSending) {
@@ -208,12 +213,12 @@ fun NotificationsScreen(
                                                 onCheckedChange = {
                                                     selectedEmails = if (it) selectedEmails + email else selectedEmails - email
                                                 },
-                                                colors = CheckboxDefaults.colors(checkedColor = DoctorGreen)
+                                                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF334671))
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Column {
-                                                Text(patient.name ?: "Unknown", fontWeight = FontWeight.Medium)
-                                                Text(email, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                                Text(patient.name ?: "Unknown", fontWeight = FontWeight.Medium, color = Color.White)
+                                                Text(email, style = MaterialTheme.typography.bodySmall, color = Color.White)
                                             }
                                         }
                                     }
@@ -222,7 +227,7 @@ fun NotificationsScreen(
                         },
                         confirmButton = {
                             TextButton(onClick = { showPatientSelector = false }) {
-                                Text("Done", color = DoctorGreen)
+                                Text("Done", color = Color(0xFF334671))
                             }
                         }
                     )

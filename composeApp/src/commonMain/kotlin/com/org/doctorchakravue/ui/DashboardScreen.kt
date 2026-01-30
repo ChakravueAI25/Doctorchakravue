@@ -1,6 +1,7 @@
 package com.org.doctorchakravue.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -9,8 +10,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.VideoCall
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -20,39 +19,35 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.org.doctorchakravue.data.ApiRepository
+import com.org.doctorchakravue.model.AdherencePatient
 import com.org.doctorchakravue.model.Submission
-import com.org.doctorchakravue.ui.theme.DoctorBlue
-import com.org.doctorchakravue.ui.theme.DoctorGreen
-import com.org.doctorchakravue.ui.theme.DoctorLightGray
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
-// --- State ---
+// ----------------------------------------------------
+// STATE
+// ----------------------------------------------------
 data class DashboardState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
     val doctorName: String = "",
     val urgentReviews: List<Submission> = emptyList(),
     val history: List<Submission> = emptyList(),
-    val visionSubmissions: List<Submission> = emptyList()
-    ,
-    val videoCallRequests: List<com.org.doctorchakravue.model.VideoCallRequest> = emptyList()
+    val visionSubmissions: List<Submission> = emptyList(),
+    val videoCallRequests: List<com.org.doctorchakravue.model.VideoCallRequest> = emptyList(),
+    val adherencePatients: List<AdherencePatient> = emptyList()
 )
 
-// --- ViewModel ---
+// ----------------------------------------------------
+// VIEWMODEL
+// ----------------------------------------------------
 class DashboardViewModel(private val repository: ApiRepository) {
     private val _state = MutableStateFlow(DashboardState())
     val state: StateFlow<DashboardState> = _state.asStateFlow()
@@ -79,6 +74,7 @@ class DashboardViewModel(private val repository: ApiRepository) {
                 val hist = repository.getHistory(doctorId)
                 val vision = repository.getVisionSubmissions(doctorId)
                 val vrequests = repository.getVideoCallRequests()
+                val adherence = repository.getAdherenceList(doctorId)
 
                 _state.update {
                     it.copy(
@@ -87,9 +83,9 @@ class DashboardViewModel(private val repository: ApiRepository) {
                         doctorName = name,
                         urgentReviews = urgent,
                         history = hist,
-                        visionSubmissions = vision
-                        ,
-                        videoCallRequests = vrequests
+                        visionSubmissions = vision,
+                        videoCallRequests = vrequests,
+                        adherencePatients = adherence
                     )
                 }
             } else {
@@ -124,15 +120,16 @@ class DashboardViewModel(private val repository: ApiRepository) {
                 val hist = repository.getHistory(doctorId)
                 val vision = repository.getVisionSubmissions(doctorId)
                 val vrequests = repository.getVideoCallRequests()
+                val adherence = repository.getAdherenceList(doctorId)
 
                 _state.update {
                     it.copy(
                         isRefreshing = false,
                         urgentReviews = urgent,
                         history = hist,
-                        visionSubmissions = vision
-                        ,
-                        videoCallRequests = vrequests
+                        visionSubmissions = vision,
+                        videoCallRequests = vrequests,
+                        adherencePatients = adherence
                     )
                 }
             } else {
@@ -152,13 +149,15 @@ class DashboardViewModel(private val repository: ApiRepository) {
     }
 }
 
-// --- Screen ---
+// ----------------------------------------------------
+// SCREEN
+// ----------------------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onLogout: () -> Unit = {},
     onNavigateToSubmissionDetail: (Submission) -> Unit = {},
-    onNavigateToAdherence: () -> Unit = {},
+    onNavigateToAdherence: (AdherencePatient) -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToPainScaleHistory: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
@@ -169,224 +168,264 @@ fun DashboardScreen(
     val state by viewModel.state.collectAsState()
 
     DisposableEffect(Unit) {
-        onDispose {
-            viewModel.stopAutoRefresh()
-        }
+        onDispose { viewModel.stopAutoRefresh() }
     }
 
     if (state.isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = DoctorGreen)
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Color(0xFF334671))
         }
-    } else {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // NON-SCROLLABLE HEADER
+        return
+    }
+
+    Column(Modifier.fillMaxSize()) {
+
+        // ---------------- HEADER ----------------
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Hello,  Dr. ${state.doctorName}",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column {
-                    Text("Hello,", style = MaterialTheme.typography.bodyLarge, color = Color.Gray)
-                    Text("Dr. ${state.doctorName}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Box(
+                    Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f))
+                        .clickable { onNavigateToNotifications() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("⚙", fontSize = 18.sp)
                 }
                 Box(
-                    modifier = Modifier
-                        .size(48.dp)
+                    Modifier
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(DoctorBlue)
+                        .background(Color(0xFFFFC107))
                         .clickable { onNavigateToProfile() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Dr", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(
+                        state.doctorName.firstOrNull()?.uppercase() ?: "D",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
                 }
             }
+        }
 
-            // SCROLLABLE CONTENT
-            PullToRefreshBox(
-                isRefreshing = state.isRefreshing,
-                onRefresh = { viewModel.refresh() },
-                modifier = Modifier.fillMaxSize()
+        // ---------------- SCROLLABLE CONTENT ----------------
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = { viewModel.refresh() },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
-                ) {
-                    //  SPACING
-                    item {
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
 
-                    //  URGENT REVIEWS
+                // ---------- STATS CARDS ----------
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Urgent Reviews", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            "See all",
-                            color = DoctorGreen,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.clickable { onNavigateToPainScaleHistory() }
+                        GlassStatCard(
+                            line1 = "Today's",
+                            line2 = "Consultations",
+                            value = "1/15",
+                            modifier = Modifier.weight(1f)
+                        )
+                        GlassStatCard(
+                            line1 = "Urgent",
+                            line2 = "Reviews",
+                            value = "${state.urgentReviews.size}/15",
+                            modifier = Modifier.weight(1f)
+                        )
+                        GlassStatCard(
+                            line1 = "Video call",
+                            line2 = "Requests",
+                            value = "${state.videoCallRequests.size}/15",
+                            modifier = Modifier.weight(1f)
                         )
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState())
-                    ) {
-                        if (state.urgentReviews.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.White.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                                    .padding(24.dp)
-                            ) {
-                                Text("No pending reviews.", color = Color.Gray)
-                            }
-                        } else {
-                            state.urgentReviews.forEach { submission ->
-                                UrgentReviewCard(submission) {
-                                    onNavigateToSubmissionDetail(submission)
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
                 }
 
-                //  VIDEO CALL REQUESTS
+                // ---------- NEXT APPOINTMENTS ----------
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Video Call Requests", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            "See all",
-                            color = DoctorGreen,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.clickable { onNavigateToVideoCallList() }
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    SectionHeader("Your Next Appointments")
+                    Spacer(Modifier.height(8.dp))
+                    EmptyStateCard("No upcoming appointments")
+                }
 
-                    val vlist = state.videoCallRequests.take(3)  // Get top 3 latest requests
+                // ---------- URGENT REVIEWS CAROUSEL ----------
+                item {
+                    SectionHeader(
+                        title = "Urgent Reviews",
+                        action = "View all",
+                        onAction = onNavigateToPainScaleHistory
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    UrgentReviewCarousel(
+                        items = state.urgentReviews.take(4),
+                        onClick = onNavigateToSubmissionDetail
+                    )
+                }
 
-                    if (vlist.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.85f), RoundedCornerShape(16.dp))
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Default.VideoCall,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(40.dp),
-                                    tint = Color.Gray.copy(alpha = 0.5f)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "No pending call requests",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.Gray,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
+                // ---------- DRUG ADHERENCE ----------
+                item {
+                    SectionHeader("Drug Adherence")
+                    Spacer(Modifier.height(8.dp))
+                    if (state.adherencePatients.isEmpty()) {
+                        EmptyStateCard("No adherence data available")
                     } else {
-                        // Display top 3 requests as cards
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            vlist.forEach { request ->
-                                VideoCallRequestCard(request = request, onClick = { onNavigateToVideoCallList() })
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            state.adherencePatients.take(4).forEach { patient ->
+                                AdherenceSummaryCard(patient) {
+                                    onNavigateToAdherence(patient)
+                                }
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
                 }
 
-                // QUICK ACTIONS
+                // ---------- QUICK ACTIONS ----------
                 item {
-                    Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    SectionHeader("Quick Actions")
+                    Spacer(Modifier.height(8.dp))
                     Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        QuickActionItem("📢", "Broadcast", Color(0xFFFF9800)) { onNavigateToNotifications() }
-                        QuickActionItem("🔍", "Search", Color(0xFF2196F3)) { }
-                        QuickActionItem("📷", "Slitlamp", Color(0xFF9C27B0)) { onNavigateToSlitLamp() }
+                        QuickActionItem("📢", "Broadcast", Color(0xFF281D51)) { onNavigateToNotifications() }
+                        QuickActionItem("🔍", "Search", Color(0xFF281D51)) { }
+                        QuickActionItem("📷", "Slitlamp", Color(0xFF281D51)) { onNavigateToSlitLamp() }
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
                 }
 
-                //  VISION TEST SUBMISSIONS
+                // ---------- VISION SUBMISSIONS ----------
                 item {
-                    Text("Vision Test submissions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    SectionHeader("Vision Test Submissions")
+                    Spacer(Modifier.height(8.dp))
                 }
 
-                val visionTests = state.visionSubmissions.take(2)
-                if (visionTests.isEmpty()) {
+                if (state.visionSubmissions.isEmpty()) {
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                                .padding(24.dp)
-                        ) {
-                            Text("No vision test submissions.", color = Color.Gray)
-                        }
+                        EmptyStateCard("No vision test submissions")
                     }
                 } else {
-                    items(visionTests) { submission ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
-                                .clickable { onNavigateToSubmissionDetail(submission) }
-                        ) {
-                            VisionTestSubmissionItem(submission)
+                    items(state.visionSubmissions.take(2)) { submission ->
+                        VisionItem(submission) {
+                            onNavigateToSubmissionDetail(submission)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
 
-                item { Spacer(modifier = Modifier.height(20.dp)) }
-                }
+                item { Spacer(Modifier.height(24.dp)) }
             }
         }
     }
 }
 
-// --- Components ---
+// ----------------------------------------------------
+// COMPONENTS
+// ----------------------------------------------------
+
 @Composable
-private fun QuickActionItem(emoji: String, label: String, color: Color, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(end = 20.dp).clickable { onClick() }
+private fun GlassStatCard(
+    line1: String,
+    line2: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(92.dp)
+            .clip(RoundedCornerShape(26.dp))
+            .background(Color.White.copy(alpha = 0.18f))
+            .border(
+                1.dp,
+                Color.White.copy(alpha = 0.35f),
+                RoundedCornerShape(26.dp)
+            )
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = 0.1f)),
-            contentAlignment = Alignment.Center
+        Column(
+            verticalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxHeight()
         ) {
-            Text(emoji, style = MaterialTheme.typography.headlineSmall)
+            Column {
+                Text(
+                    line1,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+                Text(
+                    line2,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+            }
+
+            Text(
+                value,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFFFC107)
+            )
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(label, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        if (action != null && onAction != null) {
+            Text(
+                action,
+                color = Color(0xFF334671),
+                modifier = Modifier.clickable { onAction() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun UrgentReviewCarousel(
+    items: List<Submission>,
+    onClick: (Submission) -> Unit
+) {
+    if (items.isEmpty()) {
+        EmptyStateCard("No urgent reviews")
+        return
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items.forEach { submission ->
+            UrgentReviewCard(submission) { onClick(submission) }
+        }
     }
 }
 
@@ -398,37 +437,31 @@ private fun UrgentReviewCard(submission: Submission, onClick: () -> Unit) {
     val painColor = when {
         painScale >= 7 -> Color(0xFFD32F2F)
         painScale >= 4 -> Color(0xFFF57C00)
-        else -> DoctorGreen
+        else -> Color(0xFF334671)
     }
 
-    Box(
+    Card(
         modifier = Modifier
-            .width(160.dp)
-            .height(200.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.85f))
-            .clickable { onClick() }
+            .width(180.dp)
+            .height(220.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column {
             AsyncImage(
                 model = imageUrl,
                 contentDescription = null,
-                modifier = Modifier
-                    .height(110.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                modifier = Modifier.height(120.dp).fillMaxWidth(),
                 contentScale = ContentScale.Crop
             )
-
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(Modifier.padding(12.dp)) {
                 Text(
-                    text = submission.patientName ?: "Unknown",
-                    style = MaterialTheme.typography.bodyMedium,
+                    submission.patientName ?: "Unknown",
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-
+                Spacer(Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -448,142 +481,119 @@ private fun UrgentReviewCard(submission: Submission, onClick: () -> Unit) {
 }
 
 @Composable
-private fun HistoryItem(submission: Submission) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(DoctorLightGray),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("👁", fontSize = 18.sp)
-        }
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = submission.patientName ?: "Unknown",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = "Pain Scale: ${submission.painScale ?: 0}/10",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-        }
-
-        Text(
-            text = "View",
-            style = MaterialTheme.typography.labelSmall,
-            color = DoctorGreen
-        )
-    }
-}
-
-@Composable
-private fun VisionTestSubmissionItem(submission: Submission) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(50.dp).clip(CircleShape).background(Color(0xFFE8D5F2)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                submission.patientName?.firstOrNull()?.uppercase() ?: "A",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF6A4C93)
-            )
-        }
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = submission.patientName ?: "Unknown",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = submission.formName ?: "Vision Test",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-        }
-
-        Text(
-            text = "View",
-            style = MaterialTheme.typography.labelSmall,
-            color = DoctorGreen
-        )
-    }
-}
-
-@Composable
-private fun VideoCallRequestCard(
-    request: com.org.doctorchakravue.model.VideoCallRequest,
-    onClick: () -> Unit = {}
-) {
+private fun AdherenceSummaryCard(patient: AdherencePatient, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f)),
-        shape = RoundedCornerShape(12.dp)
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA))
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(DoctorBlue.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.VideoCall,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = DoctorGreen
-                    )
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = request.patientName ?: "Unknown Patient",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = request.reason ?: "Video call requested",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray,
-                        maxLines = 1
-                    )
-                }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(patient.patientName ?: "Unknown", fontWeight = FontWeight.Bold)
+                Text(
+                    "Last updated: ${formatTimestamp(patient.lastMedicationAt)}",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
             }
-
+            val history = patient.medicationHistory ?: emptyList()
+            val totalCount = history.size
+            val takenCount = history.count { (it.taken ?: 0) == 1 }
+            val adherenceRate = if (totalCount > 0) (takenCount.toFloat() / totalCount * 100).toInt() else 0
+            val adherenceColor = when {
+                adherenceRate >= 80 -> Color(0xFF334671)
+                adherenceRate >= 50 -> Color(0xFFF57C00)
+                else -> Color(0xFFD32F2F)
+            }
             Text(
-                text = request.status ?: "pending",
-                style = MaterialTheme.typography.labelSmall,
-                color = DoctorGreen,
-                fontWeight = FontWeight.Bold
+                "$adherenceRate%",
+                color = adherenceColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
             )
         }
     }
 }
+
+@Composable
+private fun QuickActionItem(emoji: String, label: String, color: Color, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(emoji, style = MaterialTheme.typography.headlineSmall)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(label, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+    }
+}
+
+@Composable
+private fun VisionItem(submission: Submission, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(50.dp).clip(CircleShape).background(Color(0xFFE8D5F2)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    submission.patientName?.firstOrNull()?.uppercase() ?: "A",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF6A4C93)
+                )
+            }
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    submission.patientName ?: "Unknown",
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    submission.formName ?: "Vision Test",
+                    color = Color.Gray,
+                    fontSize = 14.sp
+                )
+            }
+            Text(
+                "View",
+                color = Color(0xFF334671),
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyStateCard(text: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F2F2))
+    ) {
+        Box(Modifier.padding(24.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(text, color = Color.Gray)
+        }
+    }
+}
+
+
+private fun formatTimestamp(iso: String?): String = iso?.take(10) ?: "Unknown"
+

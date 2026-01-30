@@ -36,9 +36,9 @@ fun AppTheme(content: @Composable () -> Unit) {
                 .background(
                     Brush.verticalGradient(
                         colorStops = arrayOf(
-                            0.0f to Color(0xFFFFFFFF),
-                            0.37f to Color(0xFF6A7FC0),
-                            1.0f to Color(0xFF334671)
+                            0.0f to Color(0xFF334671),
+                            0.63f to Color(0xFF6A7FC0),
+                            1.0f to Color(0xFFFFFFFF)
                         )
                     )
                 )
@@ -52,46 +52,5 @@ fun AppTheme(content: @Composable () -> Unit) {
 fun AppBackground(content: @Composable () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         content()
-    }
-}
-
-/**
- * CardView - Consistent card styling across the app.
- * No elevation, no border, rounded corners, translucent white background.
- */
-@Composable
-fun CardView(
-    modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                color = Color.White.copy(alpha = 0.85f),
-                shape = shape
-            )
-            .padding(16.dp)
-    ) {
-        Column(content = content)
-    }
-}
-
-@Composable
-fun PrescriptionCard(
-    modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Box(
-        modifier = modifier
-            .background(
-                color = Color.White.copy(alpha = 0.92f),
-                shape = shape
-            )
-            .padding(16.dp)
-    ) {
-        Column(content = content)
     }
 }

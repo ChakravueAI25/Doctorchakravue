@@ -1,5 +1,6 @@
 package com.org.doctorchakravue.app
 
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -60,7 +61,11 @@ fun App() {
                 startDestination = startDestination,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(if (showBottomNav) padding else PaddingValues())
+                    .padding(if (showBottomNav) padding else PaddingValues()),
+                enterTransition = NavigationAnimations.enterTransition,
+                exitTransition = NavigationAnimations.exitTransition,
+                popEnterTransition = NavigationAnimations.popEnterTransition,
+                popExitTransition = NavigationAnimations.popExitTransition
             ) {
                 composable("login") {
                     LoginScreen(
@@ -84,7 +89,11 @@ fun App() {
                             val encodedJson = json.replace("/", "%2F")
                             navController.navigate("submission/$encodedJson")
                         },
-                        onNavigateToAdherence = { navController.navigate("adherence") },
+                        onNavigateToAdherence = { patient ->
+                            val json = Json.encodeToString(patient)
+                            val encodedJson = json.replace("/", "%2F")
+                            navController.navigate("adherence_detail/$encodedJson")
+                        },
                         onNavigateToNotifications = { navController.navigate("notifications") },
                         onNavigateToPainScaleHistory = { navController.navigate("pain_scale_history") },
                         onNavigateToProfile = { navController.navigate("profile") },
