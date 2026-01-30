@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.app.ui.splash.SplashScreen
 import com.org.doctorchakravue.app.App
 
 class MainActivity : ComponentActivity() {
@@ -30,8 +31,8 @@ class MainActivity : ComponentActivity() {
             if (showAnimatedSplash) {
                 // Show custom animated splash screen
                 Log.d("SplashScreen", "Showing DoctorChakravueSplashScreen")
-                DoctorChakravueSplashScreen(
-                    onAnimationFinished = {
+                SplashScreen(
+                    onSplashComplete = {
                         Log.d("SplashScreen", "Animation finished, hiding splash")
                         showAnimatedSplash = false
                     }

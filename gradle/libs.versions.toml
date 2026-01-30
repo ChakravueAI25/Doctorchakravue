@@ -23,6 +23,7 @@ googleGmsGoogleServices = "4.4.4"
 firebaseMessaging = "24.1.0"
 firebaseMessagingKtx = "24.1.0"
 compose-plugin = "1.7.0"
+uiGeometry = "1.10.1"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -67,6 +68,7 @@ compose-icons-extended = { module = "org.jetbrains.compose.material:material-ico
 androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version = "2.8.0-alpha10" }
 firebase-messaging-ktx = { group = "com.google.firebase", name = "firebase-messaging-ktx", version.ref = "firebaseMessagingKtx" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebaseMessaging" }
+androidx-ui-geometry = { group = "androidx.compose.ui", name = "ui-geometry", version.ref = "uiGeometry" }
 
 
 
