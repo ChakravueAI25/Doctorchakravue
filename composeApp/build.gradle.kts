@@ -36,7 +36,6 @@ kotlin {
             implementation(libs.firebase.messaging.ktx) // Firebase Cloud Messaging
             implementation("io.agora.rtc:full-sdk:4.6.1")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime-jvm:0.6.0")
-            implementation("androidx.core:core-splashscreen:1.0.1") // Splash Screen API
 
         }
 
