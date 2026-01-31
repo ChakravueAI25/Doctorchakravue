@@ -1,5 +1,5 @@
 // --- BEGIN SPLASH SCREEN ANIMATION ---
-package com.example.app.ui.splash
+package com.org.doctorchakravue
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -783,7 +783,7 @@ fun SplashScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(Color.White)
     ) {
         Canvas(
             modifier = Modifier
@@ -860,7 +860,7 @@ fun SplashScreen(
                     }) {
                         drawPath(
                             path = state.path,
-                            color = Color.White.copy(alpha = alpha),
+                            color = Color.Black.copy(alpha = alpha),
                             style = Fill
                         )
                     }
@@ -917,7 +917,7 @@ fun SplashScreen(
                         }) {
                             drawPath(
                                 path = state.path,
-                                color = Color.White,
+                                color = Color.Black,
                                 style = Fill
                             )
                         }

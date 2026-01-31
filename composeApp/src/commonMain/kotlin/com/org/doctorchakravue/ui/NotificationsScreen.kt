@@ -76,10 +76,21 @@ fun NotificationsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.Start,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Notify", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Notify", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
                 // SCROLLABLE CONTENT
                 Column(
@@ -153,7 +164,7 @@ fun NotificationsScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Selected: ${selectedEmails.size} patients", fontWeight = FontWeight.SemiBold, color = Color.White)
+                                    Text("Selected: ${selectedEmails.size} patients", fontWeight = FontWeight.SemiBold, color = Color(0xFF334671))
                                     TextButton(onClick = { showPatientSelector = true }) {
                                         Text("Select", color = Color(0xFF334671))
                                     }
@@ -190,10 +201,10 @@ fun NotificationsScreen(
                 if (showPatientSelector) {
                     AlertDialog(
                         onDismissRequest = { showPatientSelector = false },
-                        title = { Text("Select Patients") },
+                        title = { Text("Select Patients", color = Color(0xFF334671)) },
                         text = {
                             if (patients.isEmpty()) {
-                                Text("No patients available.")
+                                Text("No patients available.", color = Color(0xFF334671))
                             } else {
                                 LazyColumn(modifier = Modifier.height(300.dp)) {
                                     items(patients) { patient ->
@@ -203,22 +214,30 @@ fun NotificationsScreen(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clickable {
-                                                    selectedEmails = if (isSelected) selectedEmails - email else selectedEmails + email
+                                                    selectedEmails = if (isSelected) {
+                                                        selectedEmails - email
+                                                    } else {
+                                                        selectedEmails + email
+                                                    }
                                                 }
                                                 .padding(vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Checkbox(
                                                 checked = isSelected,
-                                                onCheckedChange = {
-                                                    selectedEmails = if (it) selectedEmails + email else selectedEmails - email
+                                                onCheckedChange = { checked ->
+                                                    selectedEmails = if (checked) {
+                                                        selectedEmails + email
+                                                    } else {
+                                                        selectedEmails - email
+                                                    }
                                                 },
                                                 colors = CheckboxDefaults.colors(checkedColor = Color(0xFF334671))
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Column {
-                                                Text(patient.name ?: "Unknown", fontWeight = FontWeight.Medium, color = Color.White)
-                                                Text(email, style = MaterialTheme.typography.bodySmall, color = Color.White)
+                                                Text(patient.name ?: "Unknown", fontWeight = FontWeight.Medium, color = Color(0xFF334671))
+                                                Text(email, style = MaterialTheme.typography.bodySmall, color = Color(0xFF334671).copy(alpha = 0.7f))
                                             }
                                         }
                                     }

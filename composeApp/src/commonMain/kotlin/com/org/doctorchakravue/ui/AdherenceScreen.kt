@@ -30,6 +30,7 @@ import com.org.doctorchakravue.ui.theme.DoctorGreen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdherenceScreen(
+    onBack: () -> Unit = {},
     onNavigateToDetail: (AdherencePatient) -> Unit = {}
 ) {
     val repository = remember { ApiRepository() }
@@ -53,7 +54,16 @@ fun AdherenceScreen(
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Drug Adherence", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Drug Adherence", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
                 }
 
                 // SCROLLABLE CONTENT

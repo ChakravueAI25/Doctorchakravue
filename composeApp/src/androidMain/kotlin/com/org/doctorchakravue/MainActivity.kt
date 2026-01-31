@@ -11,7 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.tooling.preview.Preview
-import com.example.app.ui.splash.SplashScreen
+import com.org.doctorchakravue.SplashScreen
 import com.org.doctorchakravue.app.App
 
 class MainActivity : ComponentActivity() {

@@ -437,18 +437,11 @@ private fun UrgentReviewCarousel(
 @Composable
 private fun UrgentReviewCard(submission: Submission, onClick: () -> Unit) {
     val imageUrl = "https://doctor.chakravue.co.in/files/${submission.imageId}"
-    val painScale = submission.painScale ?: 0
-
-    val painColor = when {
-        painScale >= 7 -> Color(0xFFD32F2F)
-        painScale >= 4 -> Color(0xFFF57C00)
-        else -> Color(0xFF334671)
-    }
 
     Card(
         modifier = Modifier
-            .width(180.dp)
-            .height(220.dp)
+            .width(160.dp)
+            .height(180.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
@@ -466,20 +459,6 @@ private fun UrgentReviewCard(submission: Submission, onClick: () -> Unit) {
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(painColor.copy(alpha = 0.15f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Pain: $painScale/10",
-                        color = painColor,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
             }
         }
     }
