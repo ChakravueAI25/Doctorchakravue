@@ -764,11 +764,11 @@ async def admin_post_submission_message(submission_id: str, payload: dict):
 async def get_submissions_for_doctor(doctor_id: str):
     """
     Fetches a summary list of the 4 NEWEST UN-ARCHIVED submissions.
+    Now returns ALL submissions irrespective of doctor_id so every doctor can see everything.
     """
     submissions = []
-    query = {"doctor_id": doctor_id, "is_archived": {"$ne": True}}
+    query = {"is_archived": {"$ne": True}}  # No doctor_id filter — all doctors see all submissions
 
-    # <-- MODIFIED QUERY: Added .limit(4)
     cursor = submissions_collection.find(query).sort("timestamp", -1).limit(4)
 
     async for doc in cursor:
@@ -781,10 +781,11 @@ async def get_submissions_for_doctor(doctor_id: str):
 @app.get("/submissions/doctor/{doctor_id}/history")
 async def get_submission_history(doctor_id: str):
     """
-    Fetches ALL submissions for a doctor (archived and not), for the history page.
+    Fetches ALL submissions (archived and not), for the history page.
+    Now returns ALL submissions irrespective of doctor_id so every doctor can see everything.
     """
     submissions = []
-    query = {"doctor_id": doctor_id} # No filter for "is_archived"
+    query = {}  # No doctor_id filter — all doctors see all submissions
 
     cursor = submissions_collection.find(query).sort("timestamp", -1)
 
@@ -829,15 +830,34 @@ async def login_doctor(payload: dict):
     username = username.strip().lower()
 
     # USERS collection (primary auth source) — canonical store for long-term migration
+    # Try case-insensitive regex match so "Nidhi Doctor" or "nidhi doctor" both work
     user = await users_collection.find_one({
-        "username": username,
+        "username": {"$regex": f"^{username}$", "$options": "i"},
         "role": "DOCTOR"
     })
 
     if user:
-        if not pwd_context.verify(password, user["hashed_password"]):
+        stored_hash = user.get("hashed_password", "")
+        print(f"[LOGIN DEBUG] Found user in users collection: {user.get('username')}")
+        print(f"[LOGIN DEBUG] Stored hash starts with: {stored_hash[:20]}...")
+
+        try:
+            password_ok = pwd_context.verify(password, stored_hash)
+        except Exception as e:
+            print(f"[LOGIN DEBUG] pwd_context.verify raised exception: {e}")
+            # Fallback: try direct bcrypt comparison if passlib has issues
+            import bcrypt as _bcrypt
+            try:
+                password_ok = _bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
+            except Exception as e2:
+                print(f"[LOGIN DEBUG] bcrypt fallback also failed: {e2}")
+                password_ok = False
+
+        if not password_ok:
+            print(f"[LOGIN DEBUG] Password verification FAILED for user: {username}")
             raise HTTPException(status_code=401, detail="Invalid username or password")
 
+        print(f"[LOGIN DEBUG] Password verification PASSED for user: {username}")
         return {
             "_id": str(user["_id"]),
             "name": user.get("full_name"),
@@ -845,9 +865,25 @@ async def login_doctor(payload: dict):
             "role": user.get("role")
         }
 
+    print(f"[LOGIN DEBUG] User '{username}' NOT found in users collection with role DOCTOR")
+
     # Fallback: legacy doctors collection (backward compatibility during migration)
-    doctor = await doctors_collection.find_one({"email": username})
-    if not doctor or not pwd_context.verify(password, doctor["password"]):
+    doctor = await doctors_collection.find_one({"email": {"$regex": f"^{username}$", "$options": "i"}})
+    if not doctor:
+        print(f"[LOGIN DEBUG] Doctor '{username}' also NOT found in doctors collection")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    try:
+        password_ok = pwd_context.verify(password, doctor["password"])
+    except Exception as e:
+        print(f"[LOGIN DEBUG] pwd_context.verify raised exception (doctors coll): {e}")
+        import bcrypt as _bcrypt
+        try:
+            password_ok = _bcrypt.checkpw(password.encode("utf-8"), doctor["password"].encode("utf-8"))
+        except Exception:
+            password_ok = False
+
+    if not password_ok:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     return {

@@ -17,9 +17,17 @@ data class ApiError(val detail: String)
 // --- Video Call ---
 @Serializable
 data class CallTokenResponse(
-    val token: String,
-    val app_id: String
-)
+    val token: String = "",
+    @SerialName("app_id") val app_id: String = "",       // patient backend may return "app_id"
+    val appId: String = "",                               // or "appId"
+    @SerialName("APP_ID") val APP_ID: String = "",        // or "APP_ID"
+    @SerialName("agora_app_id") val agoraAppId: String = "",  // or "agora_app_id"
+    @SerialName("agoraAppId") val agoraAppId2: String = ""    // or "agoraAppId"
+) {
+    /** Returns whichever field has a real value, trying all known variants */
+    val resolvedAppId: String
+        get() = app_id.ifBlank { appId.ifBlank { APP_ID.ifBlank { agoraAppId.ifBlank { agoraAppId2 } } } }.trim()
+}
 
 // --- Patient Records ---
 @Serializable

@@ -22,10 +22,7 @@ sealed class AppScreen(val route: String) {
         fun createRoute(callId: String) = "video_call_detail/$callId"
     }
 
-    object Call : AppScreen("call/{appId}/{token}/{channelName}") {
-        fun createRoute(appId: String, token: String, channelName: String) =
-            "call/$appId/$token/$channelName"
-    }
+    object Call : AppScreen("call")
 
     object SlitLamp : AppScreen("slit_lamp")
 }

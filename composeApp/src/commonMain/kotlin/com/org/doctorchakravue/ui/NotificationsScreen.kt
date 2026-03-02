@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -193,7 +194,7 @@ fun NotificationsScreen(
                         if (isSending) {
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                         } else {
-                            Icon(Icons.Default.Send, null)
+                            Icon(Icons.AutoMirrored.Filled.Send, null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Send Notification", fontWeight = FontWeight.Bold)
                         }
@@ -253,8 +254,8 @@ fun NotificationsScreen(
                         }
                     )
                 }
-                }
             }
         }
     }
+}
 

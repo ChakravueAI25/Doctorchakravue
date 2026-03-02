@@ -102,7 +102,12 @@
 # Agora SDK Rules
 # ==========================================
 -keep class io.agora.** { *; }
+-keepclassmembers class io.agora.** { *; }
 -dontwarn io.agora.**
+# Keep JNI native methods used by Agora
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
 
 # ==========================================
 # Multiplatform Settings Rules

@@ -17,6 +17,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * ApiRepository - Handles all API communication with the backend.
@@ -148,8 +150,55 @@ class ApiRepository(
     suspend fun getCallToken(channelName: String): CallTokenResponse? {
         return try {
             val response = client.post("/call/token?channel_name=$channelName")
-            if (response.status.isSuccess()) response.body() else null
+            val rawJson = response.bodyAsText()
+            println("[VideoCall] /call/token raw response: $rawJson")
+
+            if (!response.status.isSuccess()) {
+                println("[VideoCall] /call/token failed with status: ${response.status}")
+                return null
+            }
+
+            // Try flexible parsing — patient backend may return different field names
+            val json = Json { ignoreUnknownKeys = true }
+            try {
+                val parsed = json.decodeFromString<CallTokenResponse>(rawJson)
+                val resolvedId = parsed.resolvedAppId
+                println("[VideoCall] Parsed → app_id='${parsed.app_id}' appId='${parsed.appId}' resolvedAppId='$resolvedId' token.len=${parsed.token.length}")
+
+                // If resolvedAppId is still blank, try extracting from raw JSON keys
+                if (resolvedId.isBlank()) {
+                    println("[VideoCall] WARNING: resolvedAppId is BLANK. Attempting fallback extraction from raw JSON...")
+                    try {
+                        val jsonObj = json.parseToJsonElement(rawJson).jsonObject
+                        println("[VideoCall] Raw JSON keys: ${jsonObj.keys}")
+                        // Search for any key containing "app" and "id" (case-insensitive)
+                        val appIdKey = jsonObj.keys.firstOrNull { key ->
+                            key.lowercase().contains("app") && key.lowercase().contains("id")
+                        }
+                        if (appIdKey != null) {
+                            val extractedAppId = jsonObj[appIdKey]?.jsonPrimitive?.content ?: ""
+                            println("[VideoCall] Fallback: found key='$appIdKey' value='$extractedAppId'")
+                            if (extractedAppId.isNotBlank()) {
+                                return CallTokenResponse(
+                                    token = parsed.token,
+                                    app_id = extractedAppId
+                                )
+                            }
+                        } else {
+                            println("[VideoCall] No key matching '*app*id*' found in response keys: ${jsonObj.keys}")
+                        }
+                    } catch (e: Exception) {
+                        println("[VideoCall] Fallback JSON extraction failed: ${e.message}")
+                    }
+                }
+
+                parsed
+            } catch (e: Exception) {
+                println("[VideoCall] Parse error: ${e.message} — raw: $rawJson")
+                null
+            }
         } catch (e: Exception) {
+            println("[VideoCall] getCallToken exception: ${e.message}")
             null
         }
     }

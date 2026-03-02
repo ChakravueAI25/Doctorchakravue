@@ -57,11 +57,34 @@ fun VideoCallListScreen(
 
             val tokenResponse = repository.getCallToken(channelName)
             if (tokenResponse != null) {
+                val appId = tokenResponse.resolvedAppId
+                println("[VideoCall] Token response → app_id='$appId' token.len=${tokenResponse.token.length} channelName='$channelName'")
+
+                // Validate App ID before starting call
+                if (appId.isBlank()) {
+                    println("[VideoCall] ERROR: resolvedAppId is blank. Cannot start call.")
+                    error = "Video call setup failed: No Agora App ID received from server. Please contact support."
+                    isInitiatingCall = false
+                    initiatingCallId = null
+                    return@launch
+                }
+
+                val validAppIdPattern = Regex("^[0-9a-fA-F]{32}$")
+                if (!validAppIdPattern.matches(appId)) {
+                    println("[VideoCall] ERROR: Invalid App ID format: '$appId' (len=${appId.length})")
+                    error = "Video call setup failed: Invalid Agora App ID received ('${appId.take(10)}...'). Please contact support."
+                    isInitiatingCall = false
+                    initiatingCallId = null
+                    return@launch
+                }
+
                 repository.initiateCall(doctorId, patientId, channelName)
                 isInitiatingCall = false
                 initiatingCallId = null
-                onStartCall(tokenResponse.app_id, tokenResponse.token, channelName)
+                onStartCall(appId, tokenResponse.token, channelName)
             } else {
+                println("[VideoCall] getCallToken returned null for channel: $channelName")
+                error = "Failed to get call token. Please check your connection and try again."
                 isInitiatingCall = false
                 initiatingCallId = null
             }

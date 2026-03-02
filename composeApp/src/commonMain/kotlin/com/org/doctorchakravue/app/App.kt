@@ -21,12 +21,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.org.doctorchakravue.data.ApiRepository
+import com.org.doctorchakravue.data.PendingCallData
 import com.org.doctorchakravue.model.AdherencePatient
 import com.org.doctorchakravue.model.Submission
+import com.org.doctorchakravue.platform.PlatformVideoCallScreen
 import com.org.doctorchakravue.ui.*
 import com.org.doctorchakravue.ui.theme.BottomNavBar
 import com.org.doctorchakravue.ui.theme.AppTheme
-import io.ktor.http.encodeURLPathPart
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -161,15 +162,15 @@ fun App() {
                     }
                 }
 
-                composable("call/{appId}/{token}/{channelName}") { backStackEntry ->
-                    val appId = backStackEntry.arguments?.getString("appId") ?: ""
-                    val token = backStackEntry.arguments?.getString("token") ?: ""
-                    val channelName = backStackEntry.arguments?.getString("channelName") ?: ""
-                    DoctorCallScreen(
-                        appId = appId,
-                        token = token,
-                        channelName = channelName,
-                        onEndCall = { navController.popBackStack() }
+                composable("call") {
+                    PlatformVideoCallScreen(
+                        appId = PendingCallData.appId,
+                        token = PendingCallData.token,
+                        channelName = PendingCallData.channelName,
+                        onEndCall = {
+                            PendingCallData.clear()
+                            navController.popBackStack()
+                        }
                     )
                 }
 
@@ -178,8 +179,8 @@ fun App() {
                         onBack = { navController.popBackStack() },
                         onNavigateToDetail = { callId -> navController.navigate("video_call_detail/$callId") },
                         onStartCall = { appId, token, channelName ->
-                            val safeToken = token.encodeURLPathPart()
-                            navController.navigate("call/$appId/$safeToken/$channelName")
+                            PendingCallData.set(appId, token, channelName)
+                            navController.navigate("call")
                         }
                     )
                 }
@@ -190,8 +191,8 @@ fun App() {
                         callId = callId,
                         onBack = { navController.popBackStack() },
                         onStartCall = { appId, token, channelName ->
-                            val safeToken = token.encodeURLPathPart()
-                            navController.navigate("call/$appId/$safeToken/$channelName")
+                            PendingCallData.set(appId, token, channelName)
+                            navController.navigate("call")
                         }
                     )
                 }
