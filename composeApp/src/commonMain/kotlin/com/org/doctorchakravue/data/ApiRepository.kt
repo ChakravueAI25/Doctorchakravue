@@ -11,6 +11,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
@@ -111,8 +112,22 @@ class ApiRepository(
     // --- Patients ---
     suspend fun getPatients(): List<PatientSimple> {
         return try {
-            client.get("/patients").body()
+            val response = client.get("/patients")
+            println("DEBUG: getPatients response status: ${response.status}")
+            val responseText = response.bodyAsText()
+            println("DEBUG: getPatients response body (first 500 chars): ${responseText.take(500)}")
+
+            // Parse the response with ignoreUnknownKeys
+            val jsonParser = Json { ignoreUnknownKeys = true }
+            val patients: List<PatientSimple> = jsonParser.decodeFromString(responseText)
+            println("DEBUG: Parsed ${patients.size} patients")
+            patients.forEach { p ->
+                println("DEBUG: Patient - id: ${p.id}, name: ${p.name}, email: ${p.email}, displayName: ${p.displayName}, displayEmail: ${p.displayEmail}")
+            }
+            patients
         } catch (e: Exception) {
+            println("DEBUG: getPatients error: ${e.message}")
+            e.printStackTrace()
             emptyList()
         }
     }

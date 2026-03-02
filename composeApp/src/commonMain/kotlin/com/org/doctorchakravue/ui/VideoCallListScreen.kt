@@ -17,9 +17,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.org.doctorchakravue.data.ApiRepository
+import com.org.doctorchakravue.data.SessionManager
 import com.org.doctorchakravue.model.VideoCallRequest
 import com.org.doctorchakravue.ui.theme.DoctorBlue
 import com.org.doctorchakravue.ui.theme.DoctorGreen
+import kotlinx.coroutines.launch
 
 /**
  * VideoCallListScreen - Shows list of video call requests.
@@ -28,16 +30,42 @@ import com.org.doctorchakravue.ui.theme.DoctorGreen
 @Composable
 fun VideoCallListScreen(
     onBack: () -> Unit = {},
-    onNavigateToDetail: (String) -> Unit = {}
+    onNavigateToDetail: (String) -> Unit = {},
+    onStartCall: (appId: String, token: String, channelName: String) -> Unit = { _, _, _ -> }
 ) {
     val repository = remember { ApiRepository() }
+    val sessionManager = remember { SessionManager() }
+    val scope = rememberCoroutineScope()
     var callRequests by remember { mutableStateOf<List<VideoCallRequest>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var isInitiatingCall by remember { mutableStateOf(false) }
+    var initiatingCallId by remember { mutableStateOf<String?>(null) }
 
     val loadRequests = {
         isLoading = true
         error = null
+    }
+
+    fun initiateVideoCall(request: VideoCallRequest) {
+        scope.launch {
+            initiatingCallId = request.id
+            isInitiatingCall = true
+            val doctorId = sessionManager.getDoctorId()
+            val patientId = request.patientId ?: request.patientName ?: ""
+            val channelName = "call_$patientId"
+
+            val tokenResponse = repository.getCallToken(channelName)
+            if (tokenResponse != null) {
+                repository.initiateCall(doctorId, patientId, channelName)
+                isInitiatingCall = false
+                initiatingCallId = null
+                onStartCall(tokenResponse.app_id, tokenResponse.token, channelName)
+            } else {
+                isInitiatingCall = false
+                initiatingCallId = null
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -105,7 +133,11 @@ fun VideoCallListScreen(
             ) {
                 items(callRequests) { request ->
                     if (request.id != null) {
-                        VideoCallRequestCard(request = request, onClick = { onNavigateToDetail(request.id!!) })
+                        VideoCallRequestCard(
+                            request = request,
+                            isLoading = isInitiatingCall && initiatingCallId == request.id,
+                            onClick = { initiateVideoCall(request) }
+                        )
                     }
                 }
             }
@@ -115,9 +147,9 @@ fun VideoCallListScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun VideoCallRequestCard(request: VideoCallRequest, onClick: () -> Unit) {
+private fun VideoCallRequestCard(request: VideoCallRequest, isLoading: Boolean = false, onClick: () -> Unit) {
     Card(
-        onClick = onClick,
+        onClick = { if (!isLoading) onClick() },
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.85f)),
         shape = RoundedCornerShape(16.dp)
@@ -127,20 +159,21 @@ private fun VideoCallRequestCard(request: VideoCallRequest, onClick: () -> Unit)
                 modifier = Modifier.size(48.dp).background(DoctorBlue.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.VideoCall, null, tint = DoctorBlue, modifier = Modifier.size(28.dp))
+                if (isLoading) {
+                    CircularProgressIndicator(color = DoctorBlue, modifier = Modifier.size(24.dp))
+                } else {
+                    Icon(Icons.Default.VideoCall, null, tint = DoctorBlue, modifier = Modifier.size(28.dp))
+                }
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(request.patientName ?: "Unknown", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(request.timestamp ?: "", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            }
-            val (statusColor, statusBg) = when (request.status) {
-                "pending" -> DoctorGreen to DoctorGreen.copy(alpha = 0.1f)
-                "missed" -> Color.Red to Color.Red.copy(alpha = 0.1f)
-                else -> Color.Gray to Color.Gray.copy(alpha = 0.1f)
-            }
-            Box(modifier = Modifier.background(statusBg, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                Text((request.status ?: "unknown").replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall, color = statusColor, fontWeight = FontWeight.SemiBold)
+                Text(
+                    request.reason?.ifEmpty { "No comments provided" } ?: "No comments provided",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    maxLines = 2
+                )
             }
         }
     }

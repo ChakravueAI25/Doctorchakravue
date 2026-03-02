@@ -11,6 +11,7 @@ plugins {
 }
 
 kotlin {
+    @Suppress("DEPRECATION")
     androidTarget {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
@@ -34,8 +35,14 @@ kotlin {
             implementation(libs.ktor.client.okhttp) // Android Engine
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.firebase.messaging.ktx) // Firebase Cloud Messaging
+            // Full SDK for video calling - if only voice is needed, use "voice-sdk" instead (~50% smaller)
             implementation("io.agora.rtc:full-sdk:4.6.1")
-            implementation("org.jetbrains.kotlinx:kotlinx-datetime-jvm:0.6.0")
+
+            // CameraX for local camera preview
+            implementation("androidx.camera:camera-core:1.3.1")
+            implementation("androidx.camera:camera-camera2:1.3.1")
+            implementation("androidx.camera:camera-lifecycle:1.3.1")
+            implementation("androidx.camera:camera-view:1.3.1")
 
         }
 
@@ -52,36 +59,35 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+
+            // Serialization
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-            implementation(libs.ktor.client.logging)
-            implementation(libs.kotlinx.datetime)
 
-
-            // 1. Networking (Replaces 'http')
+            // Networking (Ktor)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
-            implementation(libs.peekaboo.image.picker)
+            implementation(libs.ktor.client.logging)
 
-
-            // 2. Storage (Replaces 'shared_preferences')
+            // Storage
             implementation(libs.multiplatform.settings)
             implementation(libs.multiplatform.settings.no.arg)
 
-            // 3. Images (Replaces 'cached_network_image')
+            // Images (Coil)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
 
-            // 4. Date Formatting (Replaces 'intl')
+            // Date/Time
             implementation(libs.kotlinx.datetime)
 
-            // 5. Navigation for KMP
+            // Navigation
             implementation(libs.androidx.navigation.compose)
 
-            // 6. Extended Material Icons
+            // Extended Material Icons
             implementation(libs.compose.icons.extended)
 
-
+            // Image Picker
+            implementation(libs.peekaboo.image.picker)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -99,17 +105,57 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+
+        // Enable vector drawable support for smaller APK
+        vectorDrawables.useSupportLibrary = true
     }
+
+    // Resource configurations - only include necessary languages
+    androidResources {
+        localeFilters += listOf("en")
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/NOTICE.md"
+            excludes += "/META-INF/LICENSE.md"
+            excludes += "/META-INF/INDEX.LIST"
+            excludes += "/META-INF/*.kotlin_module"
+            excludes += "**/*.properties"
+            excludes += "DebugProbesKt.bin"
         }
     }
+
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = false
+            // Enable R8 code shrinking, obfuscation, and optimization
+            isMinifyEnabled = true
+            // Enable resource shrinking to remove unused resources
+            isShrinkResources = true
+            // Use R8 full mode for more aggressive optimizations
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
+
+    // Single universal APK with all ABIs (no splits)
+    // Note: For Play Store distribution, consider using App Bundle (.aab) instead
+    // which automatically optimizes delivery per device
+
+    // Optimize PNG images
+    buildFeatures {
+        buildConfig = true
+    }
+
+    // Lint options to catch unused resources
+    lint {
+        checkReleaseBuilds = true
+        abortOnError = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

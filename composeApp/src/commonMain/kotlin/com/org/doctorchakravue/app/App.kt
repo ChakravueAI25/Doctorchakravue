@@ -104,7 +104,17 @@ fun App() {
                     )
                 }
 
-                composable("patients") { PatientsScreen() }
+                composable("patients") {
+                    PatientsScreen(
+                        onBack = { navController.popBackStack() },
+                        onNavigateToDashboard = {
+                            navController.navigate("dashboard") {
+                                popUpTo("dashboard") { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
 
                 composable("pain_scale_history") {
                     PainScaleHistoryScreen(
@@ -118,7 +128,15 @@ fun App() {
                 }
 
                 composable("notifications") {
-                    NotificationsScreen(onBack = { navController.popBackStack() })
+                    NotificationsScreen(
+                        onBack = { navController.popBackStack() },
+                        onNavigateToDashboard = {
+                            navController.navigate("dashboard") {
+                                popUpTo("dashboard") { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
                 }
 
                 composable("profile") {
@@ -138,11 +156,7 @@ fun App() {
                         val submission = Json.decodeFromString<Submission>(data)
                         PainScaleDetailScreen(
                             submission = submission,
-                            onBack = { navController.popBackStack() },
-                            onNavigateToCall = { appId, token, channelName ->
-                                val safeToken = token.encodeURLPathPart()
-                                navController.navigate("call/$appId/$safeToken/$channelName")
-                            }
+                            onBack = { navController.popBackStack() }
                         )
                     }
                 }
@@ -162,7 +176,11 @@ fun App() {
                 composable("video_call_list") {
                     VideoCallListScreen(
                         onBack = { navController.popBackStack() },
-                        onNavigateToDetail = { callId -> navController.navigate("video_call_detail/$callId") }
+                        onNavigateToDetail = { callId -> navController.navigate("video_call_detail/$callId") },
+                        onStartCall = { appId, token, channelName ->
+                            val safeToken = token.encodeURLPathPart()
+                            navController.navigate("call/$appId/$safeToken/$channelName")
+                        }
                     )
                 }
 
@@ -180,6 +198,13 @@ fun App() {
 
                 composable("adherence") {
                     AdherenceScreen(
+                        onBack = { navController.popBackStack() },
+                        onNavigateToDashboard = {
+                            navController.navigate("dashboard") {
+                                popUpTo("dashboard") { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        },
                         onNavigateToDetail = { patient ->
                             val json = Json.encodeToString(patient)
                             val encodedJson = json.replace("/", "%2F")

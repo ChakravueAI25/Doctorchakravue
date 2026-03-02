@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
@@ -34,7 +33,10 @@ import com.org.doctorchakravue.ui.theme.DoctorGreen
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PatientsScreen(onBack: () -> Unit = {}) {
+fun PatientsScreen(
+    onBack: () -> Unit = {},
+    onNavigateToDashboard: () -> Unit = onBack
+) {
     val repository = remember { ApiRepository() }
     var allPatients by remember { mutableStateOf<List<PatientSimple>>(emptyList()) }
     var filteredPatients by remember { mutableStateOf<List<PatientSimple>>(emptyList()) }
@@ -48,8 +50,8 @@ fun PatientsScreen(onBack: () -> Unit = {}) {
             allPatients
         } else {
             allPatients.filter { patient ->
-                patient.name?.contains(searchText, ignoreCase = true) == true ||
-                patient.email?.contains(searchText, ignoreCase = true) == true
+                patient.displayName?.contains(searchText, ignoreCase = true) == true ||
+                patient.displayEmail?.contains(searchText, ignoreCase = true) == true
             }
         }
     }
@@ -131,7 +133,7 @@ fun PatientsScreen(onBack: () -> Unit = {}) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack) {
+                        IconButton(onClick = onNavigateToDashboard) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
@@ -249,7 +251,7 @@ private fun PatientCard(patient: PatientSimple, searchText: String = "") {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = (patient.name?.firstOrNull()?.uppercase() ?: "?"),
+                    text = (patient.displayName?.firstOrNull()?.uppercase() ?: "?"),
                     color = DoctorBlue,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium
@@ -258,20 +260,20 @@ private fun PatientCard(patient: PatientSimple, searchText: String = "") {
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = patient.name ?: "Unknown",
+                    text = patient.displayName ?: "Unknown",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = patient.email ?: "",
+                    text = patient.displayEmail ?: "",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
 
                 // Show search match indicator if searching
                 if (searchText.isNotEmpty() &&
-                    (patient.name?.contains(searchText, ignoreCase = true) == true ||
-                     patient.email?.contains(searchText, ignoreCase = true) == true)) {
+                    (patient.displayName?.contains(searchText, ignoreCase = true) == true ||
+                     patient.displayEmail?.contains(searchText, ignoreCase = true) == true)) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Box(
                         modifier = Modifier

@@ -37,7 +37,8 @@ data class PatientRecord(
 data class PatientDetails(
     val name: String? = null,
     val email: String? = null,
-    val phone: String? = null
+    val phone: String? = null,
+    val registrationId: String? = null
 )
 
 @Serializable
@@ -110,12 +111,21 @@ data class SubmissionDetail(
 )
 
 // --- Patients ---
+
 @Serializable
 data class PatientSimple(
     @SerialName("_id") val id: String? = null,
     val name: String? = null,
-    val email: String? = null
-)
+    val email: String? = null,
+    val patientDetails: PatientDetails? = null
+) {
+    // Helper properties to get name/email from either top-level or nested patientDetails
+    val displayName: String?
+        get() = name ?: patientDetails?.name
+
+    val displayEmail: String?
+        get() = email ?: patientDetails?.email
+}
 
 @Serializable
 data class DoctorDto(

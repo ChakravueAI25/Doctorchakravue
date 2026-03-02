@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.org.doctorchakravue.ui.theme.DoctorBlue
 import com.org.doctorchakravue.ui.theme.DoctorGreen
+import com.org.doctorchakravue.platform.CameraPreviewView
 import kotlinx.coroutines.delay
 
 /**
@@ -54,8 +55,6 @@ fun DoctorCallScreen(
                     Icon(Icons.Default.Person, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(80.dp))
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Waiting for patient to join...", color = Color.White, style = MaterialTheme.typography.bodyLarge)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Channel: $channelName", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall)
                 }
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(Color.DarkGray), contentAlignment = Alignment.Center) {
@@ -64,28 +63,22 @@ fun DoctorCallScreen(
             }
         }
 
-        // Local Video Preview
+        // Local Video Preview with live camera feed
         Box(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(start = 16.dp, top = 56.dp, end = 16.dp, bottom = 16.dp)
                 .size(120.dp, 160.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF2D2D44))
-                .align(Alignment.TopStart),
-            contentAlignment = Alignment.Center
+                .align(Alignment.TopStart)
         ) {
-            if (isCameraOff) {
-                Icon(Icons.Default.VideocamOff, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(40.dp))
-            } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Person, null, tint = DoctorBlue, modifier = Modifier.size(40.dp))
-                    Text("You", color = Color.White, style = MaterialTheme.typography.bodySmall)
-                }
-            }
+            CameraPreviewView(
+                modifier = Modifier.fillMaxSize(),
+                isCameraOff = isCameraOff
+            )
         }
 
         // Call info header
-        Column(modifier = Modifier.align(Alignment.TopCenter).padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Video Call", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             if (!isConnecting) {
                 Text(if (remoteUserJoined) "Connected" else "Ringing...", color = DoctorGreen, style = MaterialTheme.typography.bodyMedium)

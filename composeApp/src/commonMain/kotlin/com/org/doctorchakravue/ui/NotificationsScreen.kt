@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,7 +30,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onNavigateToDashboard: () -> Unit = onBack
 ) {
     val repository = remember { ApiRepository() }
     val scope = rememberCoroutineScope()
@@ -80,9 +82,9 @@ fun NotificationsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack) {
+                        IconButton(onClick = onNavigateToDashboard) {
                             Icon(
-                                imageVector = Icons.Default.ArrowBack,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
                                 tint = Color.White,
                                 modifier = Modifier.size(24.dp)
@@ -208,7 +210,7 @@ fun NotificationsScreen(
                             } else {
                                 LazyColumn(modifier = Modifier.height(300.dp)) {
                                     items(patients) { patient ->
-                                        val email = patient.email ?: ""
+                                        val email = patient.displayEmail ?: ""
                                         val isSelected = selectedEmails.contains(email)
                                         Row(
                                             modifier = Modifier
@@ -236,7 +238,7 @@ fun NotificationsScreen(
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Column {
-                                                Text(patient.name ?: "Unknown", fontWeight = FontWeight.Medium, color = Color(0xFF334671))
+                                                Text(patient.displayName ?: "Unknown", fontWeight = FontWeight.Medium, color = Color(0xFF334671))
                                                 Text(email, style = MaterialTheme.typography.bodySmall, color = Color(0xFF334671).copy(alpha = 0.7f))
                                             }
                                         }

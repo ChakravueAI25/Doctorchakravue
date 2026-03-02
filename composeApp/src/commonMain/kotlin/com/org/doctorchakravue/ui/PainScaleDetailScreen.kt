@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -47,12 +48,7 @@ data class PainScaleDetailState(
     val currentMeds: List<String> = emptyList(),
     val previousVisits: List<HistoryEntry> = emptyList(),
     val isSending: Boolean = false,
-    val sendSuccess: Boolean = false,
-    val isInitiatingCall: Boolean = false,
-    val callToken: String? = null,
-    val callAppId: String? = null,
-    val callChannelName: String? = null,
-    val callReady: Boolean = false
+    val sendSuccess: Boolean = false
 )
 
 // --- ViewModel ---
@@ -132,35 +128,6 @@ class PainScaleDetailViewModel(
             _state.update { it.copy(isSending = false, sendSuccess = success) }
         }
     }
-
-    fun startCall() {
-        scope.launch {
-            _state.update { it.copy(isInitiatingCall = true) }
-            val doctorId = sessionManager.getDoctorId()
-            val patientId = _state.value.patientId.ifEmpty { submission.patientName ?: "" }
-            val channelName = "call_$patientId"
-
-            val tokenResponse = repository.getCallToken(channelName)
-            if (tokenResponse != null) {
-                repository.initiateCall(doctorId, patientId, channelName)
-                _state.update {
-                    it.copy(
-                        isInitiatingCall = false,
-                        callToken = tokenResponse.token,
-                        callAppId = tokenResponse.app_id,
-                        callChannelName = channelName,
-                        callReady = true
-                    )
-                }
-            } else {
-                _state.update { it.copy(isInitiatingCall = false) }
-            }
-        }
-    }
-
-    fun clearCallState() {
-        _state.update { it.copy(callToken = null, callAppId = null, callChannelName = null, callReady = false) }
-    }
 }
 
 // --- Screen ---
@@ -168,15 +135,13 @@ class PainScaleDetailViewModel(
 @Composable
 fun PainScaleDetailScreen(
     submission: Submission,
-    onBack: () -> Unit,
-    onNavigateToCall: (appId: String, token: String, channelName: String) -> Unit = { _, _, _ -> }
+    onBack: () -> Unit
 ) {
     val repository = remember { ApiRepository() }
     val viewModel = remember { PainScaleDetailViewModel(repository, submission) }
     val state by viewModel.state.collectAsState()
 
     var noteText by remember { mutableStateOf("") }
-    var commentsExpanded by remember { mutableStateOf(false) }
     var showPrescriptions by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
 
@@ -184,12 +149,6 @@ fun PainScaleDetailScreen(
         if (state.sendSuccess) onBack()
     }
 
-    LaunchedEffect(state.callReady) {
-        if (state.callReady && state.callAppId != null && state.callToken != null && state.callChannelName != null) {
-            onNavigateToCall(state.callAppId!!, state.callToken!!, state.callChannelName!!)
-            viewModel.clearCallState()
-        }
-    }
 
     AppTheme {
         AppBackground {
@@ -198,7 +157,7 @@ fun PainScaleDetailScreen(
                     CenterAlignedTopAppBar(
                         title = { Text("Submission Detail", fontWeight = FontWeight.Bold) },
                         navigationIcon = {
-                            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+                            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
                     )
@@ -237,34 +196,26 @@ fun PainScaleDetailScreen(
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
-                            Text("Pain Scale", color = Color.Gray, fontWeight = FontWeight.SemiBold)
+                            Text("Symptoms", color = Color.Gray, fontWeight = FontWeight.SemiBold)
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Slider(
-                                    value = (state.painScale.takeIf { it > 0 } ?: submission.painScale ?: 0).toFloat(),
-                                    onValueChange = {},
-                                    valueRange = 0f..10f,
-                                    enabled = false,
-                                    modifier = Modifier.weight(1f),
-                                    colors = SliderDefaults.colors(
-                                        disabledThumbColor = DoctorBlue,
-                                        disabledActiveTrackColor = DoctorBlue,
-                                        disabledInactiveTrackColor = Color(0xFFE0E0E0)
-                                    )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                SymptomBadge(
+                                    "Pain Scale",
+                                    state.painScale.takeIf { it > 0 } ?: submission.painScale ?: 0,
+                                    Color(0xFFE8F5E9),
+                                    Color(0xFF388E3C)
                                 )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    "${state.painScale.takeIf { it > 0 } ?: submission.painScale ?: 0}/10",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = DoctorBlue
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 SymptomBadge("Redness", state.redness, Color(0xFFFFEBEE), Color(0xFFD32F2F))
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                                 SymptomBadge("Swelling", state.swelling, Color(0xFFFFF3E0), Color(0xFFF57C00))
                                 SymptomBadge("Discharge", state.discharge, Color(0xFFE3F2FD), Color(0xFF1976D2))
                             }
@@ -272,26 +223,13 @@ fun PainScaleDetailScreen(
                             Spacer(modifier = Modifier.height(20.dp))
 
                             Card(
-                                onClick = { commentsExpanded = !commentsExpanded },
                                 colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text("Patient Comments", fontWeight = FontWeight.Bold)
-                                        Icon(
-                                            if (commentsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                            contentDescription = null
-                                        )
-                                    }
-                                    if (commentsExpanded) {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(state.comments.ifEmpty { "No comments provided." }, style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
-                                    }
+                                    Text("Patient Comments", fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(state.comments.ifEmpty { "No comments provided." }, style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray)
                                 }
                             }
 
@@ -341,34 +279,21 @@ fun PainScaleDetailScreen(
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            Row {
-                                Button(
-                                    onClick = { viewModel.startCall() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = DoctorBlue),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.weight(1f).height(50.dp),
-                                    enabled = !state.isInitiatingCall
-                                ) {
-                                    if (state.isInitiatingCall) {
-                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-                                    } else {
-                                        Icon(Icons.Default.VideoCall, null)
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Video Call")
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Button(
                                     onClick = { viewModel.sendNote(noteText) },
                                     colors = ButtonDefaults.buttonColors(containerColor = DoctorGreen),
                                     shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.weight(1f).height(50.dp),
+                                    modifier = Modifier.width(200.dp).height(50.dp),
                                     enabled = !state.isSending && noteText.isNotBlank()
                                 ) {
                                     if (state.isSending) {
                                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
                                     } else {
-                                        Text("Send & Archive")
+                                        Text("Send")
                                     }
                                 }
                             }
@@ -380,6 +305,7 @@ fun PainScaleDetailScreen(
                 if (showPrescriptions) {
                     AlertDialog(
                         onDismissRequest = { showPrescriptions = false },
+                        containerColor = Color.White,
                         title = { Text("Medications & Prescriptions") },
                         text = {
                             Column {
@@ -406,6 +332,7 @@ fun PainScaleDetailScreen(
                 if (showHistory) {
                     AlertDialog(
                         onDismissRequest = { showHistory = false },
+                        containerColor = Color.White,
                         title = { Text("Previous Visits") },
                         text = {
                             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
