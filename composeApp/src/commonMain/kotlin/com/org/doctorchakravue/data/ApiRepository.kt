@@ -27,12 +27,21 @@ import kotlinx.serialization.json.jsonPrimitive
 class ApiRepository(
     private val sessionManager: SessionManager = SessionManager()
 ) {
+    companion object {
+        /** Single source of truth for the backend host (API calls + image loading). */
+        const val BASE_URL = "https://grovelingly-stey-armani.ngrok-free.dev"
+
+        /** Absolute URL for a stored file/image, or null when there is no image to show. */
+        fun fileImageUrl(imageId: String?): String? =
+            if (imageId.isNullOrBlank() || imageId == "null") null else "$BASE_URL/files/$imageId"
+    }
+
     private val client = HttpClient {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
         defaultRequest {
-            url("https://doctor.chakravue.co.in")
+            url(BASE_URL)
             header(HttpHeaders.ContentType, ContentType.Application.Json)
         }
     }

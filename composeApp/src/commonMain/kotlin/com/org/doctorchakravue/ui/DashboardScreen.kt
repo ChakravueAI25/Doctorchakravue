@@ -436,7 +436,7 @@ private fun UrgentReviewCarousel(
 
 @Composable
 private fun UrgentReviewCard(submission: Submission, onClick: () -> Unit) {
-    val imageUrl = "https://doctor.chakravue.co.in/files/${submission.imageId}"
+    val imageUrl = ApiRepository.fileImageUrl(submission.imageId)
 
     Card(
         modifier = Modifier
@@ -447,12 +447,16 @@ private fun UrgentReviewCard(submission: Submission, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
     ) {
         Column {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                modifier = Modifier.height(120.dp).fillMaxWidth(),
-                contentScale = ContentScale.Crop
-            )
+            if (imageUrl != null) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    modifier = Modifier.height(120.dp).fillMaxWidth(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Spacer(modifier = Modifier.height(120.dp).fillMaxWidth().background(Color(0xFFEEEEEE)))
+            }
             Column(Modifier.padding(12.dp)) {
                 Text(
                     submission.patientName ?: "Unknown",
