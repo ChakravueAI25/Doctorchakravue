@@ -33,6 +33,14 @@ class SessionManager {
         // Note: FCM token is NOT removed on logout - it's device-specific
     }
 
+    // --- Terms & Conditions acceptance (per-user, versioned) ---
+    fun hasAcceptedTerms(doctorId: String, version: Int): Boolean =
+        doctorId.isNotEmpty() && settings.getInt("terms_accepted_$doctorId", 0) >= version
+
+    fun setTermsAccepted(doctorId: String, version: Int) {
+        if (doctorId.isNotEmpty()) settings.putInt("terms_accepted_$doctorId", version)
+    }
+
     // --- FCM Token Management ---
     fun saveFcmToken(token: String) {
         settings["fcmToken"] = token

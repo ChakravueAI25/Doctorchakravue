@@ -72,6 +72,18 @@ class ApiRepository(
         }
     }
 
+    // --- Consent (Terms & Conditions audit record) ---
+    suspend fun recordConsent(userId: String, version: Int): Boolean {
+        return try {
+            val response = client.post("/consent") {
+                setBody(mapOf("user_id" to userId, "role" to "doctor", "terms_version" to version.toString()))
+            }
+            response.status.isSuccess()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     // --- Submissions ---
     suspend fun getUrgentSubmissions(doctorId: String): List<Submission> {
         return try {
