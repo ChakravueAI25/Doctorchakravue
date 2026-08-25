@@ -176,12 +176,15 @@ fun PainScaleDetailScreen(
                             .verticalScroll(rememberScrollState())
                     ) {
                         Box(modifier = Modifier.fillMaxWidth().height(260.dp).background(Color.Black)) {
-                            AsyncImage(
-                                model = "https://doctor.chakravue.co.in/files/${submission.imageId}",
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit
-                            )
+                            val imageUrl = ApiRepository.fileImageUrl(submission.imageId)
+                            if (imageUrl != null) {
+                                AsyncImage(
+                                    model = imageUrl,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
                         }
 
                         Column(modifier = Modifier.padding(20.dp)) {

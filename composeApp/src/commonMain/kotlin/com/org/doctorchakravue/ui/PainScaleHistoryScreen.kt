@@ -91,7 +91,7 @@ fun PainScaleHistoryScreen(
 
 @Composable
 private fun PainScaleCard(submission: Submission, onClick: () -> Unit) {
-    val imageUrl = "https://doctor.chakravue.co.in/files/${submission.imageId}"
+    val imageUrl = ApiRepository.fileImageUrl(submission.imageId)
     val painScale = submission.painScale ?: 0
 
     val painColor = when {
@@ -108,15 +108,25 @@ private fun PainScaleCard(submission: Submission, onClick: () -> Unit) {
             .clickable { onClick() }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                modifier = Modifier
-                    .height(100.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
-                contentScale = ContentScale.Crop
-            )
+            if (imageUrl != null) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .height(100.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Spacer(
+                    modifier = Modifier
+                        .height(100.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                        .background(Color(0xFFEEEEEE))
+                )
+            }
             Column(modifier = Modifier.padding(12.dp)) {
                 Text(
                     text = submission.patientName ?: "Unknown",

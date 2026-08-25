@@ -22,6 +22,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.org.doctorchakravue.data.ApiRepository
 import com.org.doctorchakravue.data.PendingCallData
+import com.org.doctorchakravue.data.SessionManager
+import kotlinx.coroutines.launch
 import com.org.doctorchakravue.model.AdherencePatient
 import com.org.doctorchakravue.model.Submission
 import com.org.doctorchakravue.platform.PlatformVideoCallScreen
@@ -38,12 +40,18 @@ fun App() {
     AppTheme {
         val navController = rememberNavController()
         val repository = remember { ApiRepository() }
+        val sessionManager = remember { SessionManager() }
+        val scope = rememberCoroutineScope()
 
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route?.substringBefore("/")
 
         val startDestination = remember {
-            if (repository.isLoggedIn()) "dashboard" else "login"
+            when {
+                !repository.isLoggedIn() -> "login"
+                !sessionManager.hasAcceptedTerms(repository.getDoctorId(), LegalConfig.TERMS_VERSION) -> "terms"
+                else -> "dashboard"
+            }
         }
 
         val showBottomNav = Navigator.shouldShowBottomNav(currentRoute)
@@ -79,8 +87,23 @@ fun App() {
                 composable("login") {
                     LoginScreen(
                         onLoginSuccess = {
-                            navController.navigate("dashboard") {
+                            val dest = if (sessionManager.hasAcceptedTerms(repository.getDoctorId(), LegalConfig.TERMS_VERSION))
+                                "dashboard" else "terms"
+                            navController.navigate(dest) {
                                 popUpTo("login") { inclusive = true }
+                            }
+                        }
+                    )
+                }
+
+                composable("terms") {
+                    TermsScreen(
+                        onAccept = {
+                            val id = repository.getDoctorId()
+                            sessionManager.setTermsAccepted(id, LegalConfig.TERMS_VERSION)
+                            scope.launch { repository.recordConsent(id, LegalConfig.TERMS_VERSION) }
+                            navController.navigate("dashboard") {
+                                popUpTo("terms") { inclusive = true }
                             }
                         }
                     )
