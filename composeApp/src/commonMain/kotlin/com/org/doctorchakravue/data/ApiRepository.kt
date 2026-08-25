@@ -32,7 +32,7 @@ class ApiRepository(
             json(Json { ignoreUnknownKeys = true })
         }
         defaultRequest {
-            url("https://doctor.chakravue.co.in")
+            url("https://grovelingly-stey-armani.ngrok-free.dev")
             header(HttpHeaders.ContentType, ContentType.Application.Json)
         }
     }
