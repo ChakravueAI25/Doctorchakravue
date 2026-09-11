@@ -4,7 +4,11 @@ import com.org.doctorchakravue.model.*
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
@@ -27,12 +31,36 @@ import kotlinx.serialization.json.jsonPrimitive
 class ApiRepository(
     private val sessionManager: SessionManager = SessionManager()
 ) {
+    companion object {
+
+        // admin.chakravue.co.in is the EMR backend served directly (no nginx path rewrite),
+        // so the mobile router's own /api/mobile prefix must be part of the base URL.
+        //   curl https://admin.chakravue.co.in/api/mobile/  ->  {"status":"ok"}
+        const val BASE_URL = "https://admin.chakravue.co.in/api/mobile"
+        fun fileImageUrl(fileId: String?): String = if (fileId.isNullOrEmpty()) "" else "$BASE_URL/files/$fileId"
+    }
+
     private val client = HttpClient {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
+        // ponytail: without these two, a dead backend looks identical to "nothing happened" —
+        // no logcat line and a ~20s silent hang.
+        install(Logging) {
+            level = LogLevel.INFO
+            // Logger.DEFAULT routes through SLF4J, which has no binding on Android and
+            // silently drops everything. println() lands in logcat under "System.out".
+            logger = object : Logger {
+                override fun log(message: String) = println("[Ktor] $message")
+            }
+        }
+        install(HttpTimeout) {
+            connectTimeoutMillis = 10_000
+            requestTimeoutMillis = 20_000
+            socketTimeoutMillis = 20_000
+        }
         defaultRequest {
-            url("https://doctor.chakravue.co.in")
+            url("$BASE_URL/")
             header(HttpHeaders.ContentType, ContentType.Application.Json)
         }
     }
@@ -45,28 +73,34 @@ class ApiRepository(
 
     // --- Authentication ---
     suspend fun login(email: String, pass: String): LoginResponse {
-        try {
-            val response = client.post("/login/doctor") {
+        val response = try {
+            client.post("login/doctor") {
                 setBody(mapOf("email" to email, "password" to pass))
             }
-
-            if (response.status.isSuccess()) {
-                val data = response.body<LoginResponse>()
-                sessionManager.saveSession(data.id, data.name, data.email)
-                return data
-            } else {
-                val err = response.body<ApiError>()
-                throw Exception(err.detail)
-            }
         } catch (e: Exception) {
-            throw Exception(e.message ?: "Connection failed")
+            throw Exception("Cannot reach server: ${e.message ?: "connection failed"}")
         }
+
+        if (!response.status.isSuccess()) {
+            // Error bodies are not always JSON — a proxy 5xx (e.g. Cloudflare 522) is
+            // text/plain, and body<ApiError>() then throws a Ktor internal message that
+            // hides the real status. Read text, try for "detail", fall back to the code.
+            val raw = runCatching { response.bodyAsText() }.getOrDefault("")
+            val detail = runCatching {
+                Json.parseToJsonElement(raw).jsonObject["detail"]?.jsonPrimitive?.content
+            }.getOrNull()
+            throw Exception(detail ?: "Login failed (HTTP ${response.status.value}) ${raw.take(120)}")
+        }
+
+        val data = response.body<LoginResponse>()
+        sessionManager.saveSession(data.id, data.name ?: data.email, data.email)
+        return data
     }
 
     // --- Submissions ---
     suspend fun getUrgentSubmissions(doctorId: String): List<Submission> {
         return try {
-            client.get("/submissions/doctor/$doctorId").body()
+            client.get("submissions/doctor/$doctorId").body()
         } catch (e: Exception) {
             emptyList()
         }
@@ -74,7 +108,7 @@ class ApiRepository(
 
     suspend fun getHistory(doctorId: String): List<Submission> {
         return try {
-            client.get("/submissions/doctor/$doctorId/history").body()
+            client.get("submissions/doctor/$doctorId/history").body()
         } catch (e: Exception) {
             emptyList()
         }
@@ -82,7 +116,7 @@ class ApiRepository(
 
     suspend fun getVisionSubmissions(doctorId: String): List<Submission> {
         return try {
-            client.get("/submissions/doctor/$doctorId/vision-tests").body()
+            client.get("submissions/doctor/$doctorId/vision-tests").body()
         } catch (e: Exception) {
             // Fallback: try to filter from history if specific endpoint doesn't exist
             emptyList()
@@ -91,7 +125,7 @@ class ApiRepository(
 
     suspend fun getSubmissionDetails(submissionId: String): SubmissionDetail? {
         return try {
-            client.get("/submissions/$submissionId").body()
+            client.get("submissions/$submissionId").body()
         } catch (e: Exception) {
             null
         }
@@ -99,7 +133,7 @@ class ApiRepository(
 
     suspend fun sendSubmissionNote(submissionId: String, note: String, doctorId: String): Boolean {
         return try {
-            val response = client.post("/submissions/$submissionId/notes") {
+            val response = client.post("submissions/$submissionId/notes") {
                 setBody(mapOf(
                     "note" to note,
                     "doctorId" to doctorId
@@ -114,7 +148,7 @@ class ApiRepository(
     // --- Patients ---
     suspend fun getPatients(): List<PatientSimple> {
         return try {
-            val response = client.get("/patients")
+            val response = client.get("patients")
             println("DEBUG: getPatients response status: ${response.status}")
             val responseText = response.bodyAsText()
             println("DEBUG: getPatients response body (first 500 chars): ${responseText.take(500)}")
@@ -137,7 +171,7 @@ class ApiRepository(
     suspend fun getFullPatientProfile(query: String?): PatientRecord? {
         return try {
             if (!query.isNullOrEmpty()) {
-                val resp = client.get("/patients/case/search/?query=$query")
+                val resp = client.get("patients/case/search/?query=$query")
                 if (resp.status.isSuccess()) return resp.body()
             }
             null
@@ -149,7 +183,7 @@ class ApiRepository(
     // --- Video Calls ---
     suspend fun getCallToken(channelName: String): CallTokenResponse? {
         return try {
-            val response = client.post("/call/token?channel_name=$channelName")
+            val response = client.post("call/token?channel_name=$channelName")
             val rawJson = response.bodyAsText()
             println("[VideoCall] /call/token raw response: $rawJson")
 
@@ -231,7 +265,7 @@ class ApiRepository(
 
     suspend fun initiateCall(doctorId: String, patientId: String, channelName: String): Boolean {
         return try {
-            client.post("/call/initiate") {
+            client.post("call/initiate") {
                 setBody(mapOf(
                     "doctor_id" to doctorId,
                     "patient_id" to patientId,
@@ -259,7 +293,7 @@ class ApiRepository(
                 mapOf("all" to false, "emails" to selectedEmails)
             }
 
-            val response = client.post("/notifications") {
+            val response = client.post("notifications") {
                 setBody(MultiPartFormDataContent(
                     formData {
                         append("doctor_id", doctorId)
@@ -280,7 +314,7 @@ class ApiRepository(
 
     suspend fun getNotifications(doctorId: String): List<NotificationItem> {
         return try {
-            val response: Map<String, List<NotificationItem>> = client.get("/notifications?doctor_id=$doctorId").body()
+            val response: Map<String, List<NotificationItem>> = client.get("notifications?doctor_id=$doctorId").body()
             response["notifications"] ?: emptyList()
         } catch (e: Exception) {
             emptyList()
@@ -290,7 +324,7 @@ class ApiRepository(
     // --- Adherence ---
     suspend fun getAdherenceList(doctorId: String): List<AdherencePatient> {
         return try {
-            client.get("/doctors/$doctorId/adherence-list").body()
+            client.get("doctors/$doctorId/adherence-list").body()
         } catch (e: Exception) {
             emptyList()
         }
@@ -299,7 +333,7 @@ class ApiRepository(
     // --- Slit Lamp Images ---
     suspend fun getAllSlitLampImages(): List<SlitLampImage> {
         return try {
-            val response = client.get("/slit-lamp/all")
+            val response = client.get("slit-lamp/all")
             if (response.status.isSuccess()) {
                 val parsed: SlitLampImagesResponse = response.body()
                 parsed.images
@@ -315,7 +349,7 @@ class ApiRepository(
     // --- FCM Token Registration ---
     suspend fun registerFcmToken(doctorId: String, fcmToken: String): Boolean {
         return try {
-            val response = client.post("/doctors/$doctorId/fcm-token") {
+            val response = client.post("doctors/$doctorId/fcm-token") {
                 setBody(mapOf(
                     "fcm_token" to fcmToken,
                     "platform" to "android",
@@ -325,6 +359,21 @@ class ApiRepository(
             response.status.isSuccess()
         } catch (e: Exception) {
             println("Failed to register FCM token: ${e.message}")
+            false
+        }
+    }
+
+    // --- Legal/Consent ---
+    suspend fun recordConsent(doctorId: String, version: Int): Boolean {
+        return try {
+            // EMR mobile module exposes POST /consent {user_id, role, terms_version} —
+            // there is no /doctors/{id}/consent route, so this silently no-opped before.
+            val response = client.post("consent") {
+                setBody(ConsentBody(user_id = doctorId, role = "doctor", terms_version = version))
+            }
+            response.status.isSuccess()
+        } catch (e: Exception) {
+            println("Failed to record consent: ${e.message}")
             false
         }
     }

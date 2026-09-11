@@ -64,7 +64,8 @@ class LoginViewModel(private val repository: ApiRepository) {
 
                 _state.update { it.copy(isLoading = false, isSuccess = true) }
             } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, error = e.message) }
+                println("[Login] failed: ${e.message}")
+                _state.update { it.copy(isLoading = false, error = e.message ?: "Login failed") }
             }
         }
     }
@@ -154,6 +155,11 @@ fun LoginScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true
                             )
+
+                            state.error?.let {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(it, color = Color(0xFFD32F2F), fontSize = 13.sp)
+                            }
 
                             Spacer(modifier = Modifier.height(32.dp))
 

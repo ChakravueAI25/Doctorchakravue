@@ -7,12 +7,15 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class LoginResponse(
     @SerialName("_id") val id: String,
-    val name: String,
+    val name: String? = null,   // backend maps full_name -> name; may be absent/null
     val email: String
 )
 
 @Serializable
 data class ApiError(val detail: String)
+
+@Serializable
+data class ConsentBody(val user_id: String, val role: String, val terms_version: Int)
 
 // --- Video Call ---
 @Serializable
