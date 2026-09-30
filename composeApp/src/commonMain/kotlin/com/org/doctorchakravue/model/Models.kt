@@ -153,6 +153,21 @@ data class AdherencePatient(
     @SerialName("medication_history") val medicationHistory: List<MedicationEntry>? = null
 )
 
+// Response of GET /adherence/patient/{id} — raw logs the doctor app rebuilds into an AdherencePatient
+@Serializable
+data class AdherenceLogsResponse(
+    @SerialName("patient_id") val patientId: String? = null,
+    val adherence: List<AdherenceLog> = emptyList()
+)
+
+@Serializable
+data class AdherenceLog(
+    @SerialName("patient_name") val patientName: String? = null,
+    val medicine: String? = null,
+    val taken: Int? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
 @Serializable
 data class MedicationEntry(
     val medicine: String? = null,

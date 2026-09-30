@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -230,31 +231,36 @@ fun App() {
                             }
                         },
                         onNavigateToDetail = { patient ->
-                            val json = Json.encodeToString(patient)
-                            val encodedJson = json.replace("/", "%2F")
-                            navController.navigate("adherence_detail/$encodedJson")
+                            // Pass only the id (ObjectId hex = URL-safe); detail screen refetches.
+                            patient.patientId?.let { navController.navigate("adherence_detail/$it") }
                         }
                     )
                 }
 
-                composable("adherence_detail/{patientData}") { backStackEntry ->
-                    val data = backStackEntry.arguments?.getString("patientData")?.replace("%2F", "/")
+                composable("adherence_detail/{patientId}") { backStackEntry ->
+                    val patientId = backStackEntry.arguments?.getString("patientId")
+                    val repository = remember { ApiRepository() }
 
                     var patient: AdherencePatient? by remember { mutableStateOf(null) }
+                    var isLoading by remember { mutableStateOf(true) }
                     var hasError by remember { mutableStateOf(false) }
 
-                    LaunchedEffect(data) {
-                        if (data != null) {
-                            try {
-                                patient = Json.decodeFromString<AdherencePatient>(data)
-                                hasError = patient?.patientName.isNullOrBlank() == true
-                            } catch (e: Exception) {
-                                hasError = true
-                            }
+                    LaunchedEffect(patientId) {
+                        if (patientId.isNullOrBlank()) {
+                            hasError = true
+                            isLoading = false
+                        } else {
+                            patient = repository.getPatientAdherence(patientId)
+                            hasError = patient == null
+                            isLoading = false
                         }
                     }
 
-                    if (hasError) {
+                    if (isLoading) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else if (hasError) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
