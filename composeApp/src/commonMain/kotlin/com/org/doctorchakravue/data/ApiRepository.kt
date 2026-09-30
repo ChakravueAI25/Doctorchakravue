@@ -4,6 +4,7 @@ import com.org.doctorchakravue.model.*
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
@@ -16,6 +17,10 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.request
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
@@ -62,6 +67,25 @@ class ApiRepository(
         defaultRequest {
             url("$BASE_URL/")
             header(HttpHeaders.ContentType, ContentType.Application.Json)
+        }
+        // Forward every failed call (non-2xx and network/timeout) to the backend
+        // "mobile_app" logger so errors are visible in the server logs.
+        HttpResponseValidator {
+            validateResponse { response ->
+                if (!response.status.isSuccess()) {
+                    RemoteLogger.report(
+                        "error",
+                        "HTTP ${response.status.value} ${response.request.method.value} ${response.request.url.encodedPath}"
+                    )
+                }
+            }
+            handleResponseExceptionWithRequest { cause, request ->
+                RemoteLogger.report(
+                    "error",
+                    "NET ${request.method.value} ${request.url.encodedPath} :: ${cause.message}"
+                )
+                throw cause
+            }
         }
     }
 
@@ -240,7 +264,7 @@ class ApiRepository(
     // Fetch video call requests for all doctors (doctor_id is always null in DB, so no filtering)
     suspend fun getVideoCallRequests(status: String? = null): List<com.org.doctorchakravue.model.VideoCallRequest> {
         return try {
-            val url = if (!status.isNullOrEmpty()) "/videocallrequests?status=$status" else "/videocallrequests"
+            val url = if (!status.isNullOrEmpty()) "videocallrequests?status=$status" else "videocallrequests"
             val response = client.get(url)
 
             // Try to parse as VideoCallRequestsResponse first
@@ -330,6 +354,24 @@ class ApiRepository(
         }
     }
 
+    // Refetch one patient's adherence by id and rebuild the AdherencePatient the detail screen needs.
+    suspend fun getPatientAdherence(patientId: String): AdherencePatient? {
+        return try {
+            val resp: com.org.doctorchakravue.model.AdherenceLogsResponse =
+                client.get("adherence/patient/$patientId").body()
+            val logs = resp.adherence
+            AdherencePatient(
+                patientId = patientId,
+                patientName = logs.firstOrNull { !it.patientName.isNullOrBlank() }?.patientName,
+                lastMedicationAt = logs.firstOrNull()?.createdAt,
+                medicationHistory = logs.map { MedicationEntry(it.medicine, it.taken, it.createdAt) }
+            )
+        } catch (e: Exception) {
+            println("getPatientAdherence failed: ${e.message}")
+            null
+        }
+    }
+
     // --- Slit Lamp Images ---
     suspend fun getAllSlitLampImages(): List<SlitLampImage> {
         return try {
@@ -375,6 +417,32 @@ class ApiRepository(
         } catch (e: Exception) {
             println("Failed to record consent: ${e.message}")
             false
+        }
+    }
+}
+
+/** Fire-and-forget client error reporter -> backend "mobile_app" logger. */
+object RemoteLogger {
+    private const val APP = "doctor"
+    private val scope = CoroutineScope(Dispatchers.Default)
+    // Own client with NO validator, so a failing report never recurses.
+    private val client = HttpClient {
+        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+    }
+
+    fun report(level: String, message: String, context: String? = null) {
+        scope.launch {
+            runCatching {
+                client.post("${ApiRepository.BASE_URL}/client-logs") {
+                    header(HttpHeaders.ContentType, ContentType.Application.Json)
+                    setBody(
+                        mapOf(
+                            "app" to APP, "level" to level,
+                            "message" to message, "context" to (context ?: "")
+                        )
+                    )
+                }
+            }
         }
     }
 }
