@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -58,8 +59,8 @@ private class AgoraManager(
             Log.d(TAG, "📞 Remote user joined uid=$uid")
             engine?.let { rtc ->
                 val surface = SurfaceView(localSurface!!.context.applicationContext)
-                surface.setZOrderMediaOverlay(true)
-                rtc.setupRemoteVideo(VideoCanvas(surface, VideoCanvas.RENDER_MODE_FIT, uid))
+                surface.setZOrderMediaOverlay(false)
+                rtc.setupRemoteVideo(VideoCanvas(surface, VideoCanvas.RENDER_MODE_HIDDEN, uid))
                 onRemoteJoined(surface)
             }
         }
@@ -112,8 +113,9 @@ private class AgoraManager(
             )
             // Set up local preview with front camera
             val surface = SurfaceView(context.applicationContext)
+            surface.setZOrderMediaOverlay(true)
             localSurface = surface
-            engine!!.setupLocalVideo(VideoCanvas(surface, VideoCanvas.RENDER_MODE_FIT, 0))
+            engine!!.setupLocalVideo(VideoCanvas(surface, VideoCanvas.RENDER_MODE_HIDDEN, 0))
             engine!!.startPreview()
 
             val options = ChannelMediaOptions().apply {
@@ -253,13 +255,28 @@ private fun CallScreen(appId: String, token: String, channelName: String, onEndC
                 .padding(start = 16.dp, top = 56.dp)
                 .size(width = 120.dp, height = 160.dp)
                 .background(Color(0xFF2D2D44), RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .align(Alignment.TopStart),
             contentAlignment = Alignment.Center
         ) {
-            if (!isCameraOff && localSurface != null) {
+            if (localSurface != null) {
                 AndroidView(factory = { localSurface!! }, modifier = Modifier.fillMaxSize())
-            } else {
-                Icon(Icons.Default.VideocamOff, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
+            }
+
+            if (isCameraOff) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF2D2D44)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.VideocamOff,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.5f),
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
             }
         }
 
